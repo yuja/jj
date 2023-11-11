@@ -1356,9 +1356,8 @@ See https://github.com/martinvonz/jj/blob/main/docs/working-copy.md#stale-workin
             .transpose()?;
 
         if self.working_copy_shared_with_git {
-            let git_repo = self.git_backend().unwrap().open_git_repo()?;
             if let Some(wc_commit) = &maybe_new_wc_commit {
-                git::reset_head(tx.mut_repo(), &git_repo, wc_commit)?;
+                git::reset_head(tx.mut_repo(), wc_commit)?;
             }
             let failed_branches = git::export_refs(tx.mut_repo())?;
             print_failed_git_export(ui, &failed_branches)?;
