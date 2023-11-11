@@ -21,7 +21,6 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::{fmt, iter, str};
 
-use git2::Oid;
 use itertools::Itertools;
 use tempfile::NamedTempFile;
 use thiserror::Error;
@@ -966,85 +965,74 @@ fn update_git_head(
 /// Sets `HEAD@git` to the parent of the given working-copy commit and resets
 /// the Git index.
 pub fn reset_head(mut_repo: &mut MutableRepo, wc_commit: &Commit) -> Result<(), GitExportError> {
-    let git_backend = get_git_backend(mut_repo.store()).ok_or(GitExportError::UnexpectedBackend)?;
-    let git_repo = git_backend
-        .open_git_repo()
-        .map_err(GitExportError::from_git)?; // TODO: use gix::Repository
+    let git_repo = get_git_repo(mut_repo.store()).ok_or(GitExportError::UnexpectedBackend)?;
 
-    let first_parent_id = &wc_commit.parent_ids()[0];
-    let first_parent = if first_parent_id != mut_repo.store().root_commit_id() {
-        RefTarget::normal(first_parent_id.clone())
+    // TODO: use the merged parent tree instead?
+    let new_git_head_commit = wc_commit
+        .parents()
+        .next()
+        .unwrap()
+        .map_err(GitExportError::from_git)?; // XXX
+    let new_git_head = if new_git_head_commit.id() != mut_repo.store().root_commit_id() {
+        RefTarget::normal(new_git_head_commit.id().clone())
     } else {
         RefTarget::absent()
     };
-    if first_parent.is_present() {
-        let git_head = mut_repo.view().git_head();
-        let new_git_commit_id = Oid::from_bytes(first_parent_id.as_bytes()).unwrap();
-        let new_git_commit = git_repo
-            .find_commit(new_git_commit_id)
-            .map_err(GitExportError::from_git)?;
-        if git_head != &first_parent {
-            git_repo
-                .set_head_detached(new_git_commit_id)
-                .map_err(GitExportError::from_git)?;
-        }
 
-        let is_same_tree = if git_head == &first_parent {
-            true
-        } else if let Some(git_head_id) = git_head.as_normal() {
-            let git_head_oid = Oid::from_bytes(git_head_id.as_bytes()).unwrap();
-            let git_head_commit = git_repo
-                .find_commit(git_head_oid)
-                .map_err(GitExportError::from_git)?;
-            new_git_commit.tree_id() == git_head_commit.tree_id()
+    if new_git_head != *mut_repo.view().git_head() {
+        // TODO: use update_git_head() and check current ref target #3754
+        let new = if let Some(commit_id) = new_git_head.as_normal() {
+            gix::refs::Target::Peeled(commit_id.as_bytes().try_into().unwrap())
         } else {
-            false
-        };
-        let skip_reset = if is_same_tree {
-            // `HEAD@git` already points to a commit with the correct tree contents,
-            // so we only need to reset the Git index. We can skip the reset if
-            // the Git index is empty (i.e. `git add` was never used).
-            // In large repositories, this is around 2x faster if the Git index is empty
-            // (~0.89s to check the diff, vs. ~1.72s to reset), and around 8% slower if
-            // it isn't (~1.86s to check the diff AND reset).
-            let diff = git_repo
-                .diff_tree_to_index(
-                    Some(&new_git_commit.tree().map_err(GitExportError::from_git)?),
-                    None,
-                    Some(git2::DiffOptions::new().skip_binary_check(true)),
-                )
-                .map_err(GitExportError::from_git)?;
-            diff.deltas().len() == 0
-        } else {
-            false
-        };
-        if !skip_reset {
-            git_repo
-                .reset(new_git_commit.as_object(), git2::ResetType::Mixed, None)
-                .map_err(GitExportError::from_git)?;
-        }
-    } else {
-        // Can't detach HEAD without a commit. Use placeholder ref to nullify the HEAD.
-        // We can't set_head() an arbitrary unborn ref, so use reference_symbolic()
-        // instead. Git CLI appears to deal with that. It would be nice if Git CLI
-        // couldn't create a commit without setting a valid branch name.
-        if mut_repo.git_head().is_present() {
-            match git_repo.find_reference(UNBORN_ROOT_REF_NAME) {
-                Ok(mut git_repo_ref) => git_repo_ref.delete().map_err(GitExportError::from_git)?,
-                Err(err) if err.code() == git2::ErrorCode::NotFound => {}
-                Err(err) => return Err(GitExportError::from_git(err)),
+            // Can't detach HEAD without a commit. Use placeholder ref to nullify the HEAD.
+            // The placeholder ref isn't a normal branch ref. Git CLI appears to deal with
+            // that, and can move the placeholder ref. So we need to ensure that the ref
+            // doesn't exist.
+            if let Some(git_ref) = git_repo
+                .try_find_reference(UNBORN_ROOT_REF_NAME)
+                .map_err(GitExportError::from_git)?
+            {
+                git_ref.delete().map_err(GitExportError::from_git)?
             }
-            git_repo
-                .reference_symbolic("HEAD", UNBORN_ROOT_REF_NAME, true, "unset HEAD by jj")
-                .map_err(GitExportError::from_git)?;
-        }
-        // git_reset() of libgit2 requires a commit object. Do that manually.
-        let mut index = git_repo.index().map_err(GitExportError::from_git)?;
-        index.clear().map_err(GitExportError::from_git)?; // or read empty tree
-        index.write().map_err(GitExportError::from_git)?;
-        git_repo.cleanup_state().map_err(GitExportError::from_git)?;
+            gix::refs::Target::Symbolic(UNBORN_ROOT_REF_NAME.try_into().unwrap())
+        };
+        git_repo
+            .edit_reference(gix::refs::transaction::RefEdit {
+                change: gix::refs::transaction::Change::Update {
+                    log: gix::refs::transaction::LogChange {
+                        message: "reset HEAD by jj".into(),
+                        ..Default::default()
+                    },
+                    expected: gix::refs::transaction::PreviousValue::MustExist,
+                    new,
+                },
+                name: "HEAD".try_into().unwrap(),
+                deref: false,
+            })
+            .map_err(GitExportError::from_git)?;
     }
-    mut_repo.set_git_head_target(first_parent);
+
+    // TODO: what if the tree has conflicts?
+    if let Ok(tree_id) = new_git_head_commit.tree_id().to_merge().into_resolved() {
+        let mut index = if tree_id == *mut_repo.store().empty_tree_id() {
+            // TODO: or write empty tree to disk? (it would be complained by 'git fsck')
+            gix::index::File::from_state(
+                gix::index::State::new(gix::index::hash::Kind::Sha1),
+                git_repo.git_dir().join("index"),
+            )
+        } else {
+            git_repo
+                .index_from_tree(gix::oid::try_from_bytes(tree_id.as_bytes()).unwrap())
+                .map_err(GitExportError::from_git)?
+        };
+        index
+            .write(gix::index::write::Options::default())
+            .map_err(GitExportError::from_git)?;
+    }
+
+    // TODO: git_repo.cleanup_state().map_err(GitExportError::from_git)?;
+
+    mut_repo.set_git_head_target(new_git_head);
     Ok(())
 }
 
