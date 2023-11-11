@@ -983,11 +983,12 @@ fn update_git_head(
 
 /// Sets Git HEAD to the parent of the given working-copy commit and resets
 /// the Git index.
-pub fn reset_head(
-    mut_repo: &mut MutableRepo,
-    git_repo: &git2::Repository,
-    wc_commit: &Commit,
-) -> Result<(), GitExportError> {
+pub fn reset_head(mut_repo: &mut MutableRepo, wc_commit: &Commit) -> Result<(), GitExportError> {
+    let git_backend = get_git_backend(mut_repo.store()).ok_or(GitExportError::UnexpectedBackend)?;
+    let git_repo = git_backend
+        .open_git_repo()
+        .map_err(GitExportError::from_git)?; // TODO: use gix::Repository
+
     let first_parent_id = &wc_commit.parent_ids()[0];
     let first_parent = if first_parent_id != mut_repo.store().root_commit_id() {
         RefTarget::normal(first_parent_id.clone())

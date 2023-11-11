@@ -2149,7 +2149,7 @@ fn test_reset_head_to_root() {
         .unwrap();
 
     // Set Git HEAD to commit2's parent (i.e. commit1)
-    git::reset_head(tx.repo_mut(), &git_repo, &commit2).unwrap();
+    git::reset_head(tx.repo_mut(), &commit2).unwrap();
     assert!(git_repo.head().is_ok());
     assert_eq!(
         tx.repo_mut().git_head(),
@@ -2157,7 +2157,7 @@ fn test_reset_head_to_root() {
     );
 
     // Set Git HEAD back to root
-    git::reset_head(tx.repo_mut(), &git_repo, &commit1).unwrap();
+    git::reset_head(tx.repo_mut(), &commit1).unwrap();
     assert!(git_repo.head().is_err());
     assert!(tx.repo_mut().git_head().is_absent());
 
@@ -2165,7 +2165,7 @@ fn test_reset_head_to_root() {
     git_repo
         .reference("refs/jj/root", git_id(&commit1), false, "")
         .unwrap();
-    git::reset_head(tx.repo_mut(), &git_repo, &commit2).unwrap();
+    git::reset_head(tx.repo_mut(), &commit2).unwrap();
     assert!(git_repo.head().is_ok());
     assert_eq!(
         tx.repo_mut().git_head(),
@@ -2174,7 +2174,7 @@ fn test_reset_head_to_root() {
     assert!(git_repo.find_reference("refs/jj/root").is_ok());
 
     // Set Git HEAD back to root
-    git::reset_head(tx.repo_mut(), &git_repo, &commit1).unwrap();
+    git::reset_head(tx.repo_mut(), &commit1).unwrap();
     assert!(git_repo.head().is_err());
     assert!(tx.repo_mut().git_head().is_absent());
     // The placeholder ref should be deleted
@@ -2207,7 +2207,7 @@ fn test_reset_head_with_index() {
         .unwrap();
 
     // Set Git HEAD to commit2's parent (i.e. commit1)
-    git::reset_head(tx.repo_mut(), &git_repo, &commit2).unwrap();
+    git::reset_head(tx.repo_mut(), &commit2).unwrap();
     assert!(git_repo.index().unwrap().is_empty());
 
     // Add "staged changes" to the Git index
@@ -2221,7 +2221,7 @@ fn test_reset_head_with_index() {
     assert!(!git_repo.index().unwrap().is_empty());
 
     // Reset head to and the Git index
-    git::reset_head(tx.repo_mut(), &git_repo, &commit2).unwrap();
+    git::reset_head(tx.repo_mut(), &commit2).unwrap();
     assert!(git_repo.index().unwrap().is_empty());
 }
 
