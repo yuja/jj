@@ -46,7 +46,7 @@ impl SigningBackend for TestSigningBackend {
 
         let hash: String = blake2b_hash(&body).encode_hex();
 
-        Ok(format!("{PREFIX}{key}\n{hash}").into_bytes())
+        Ok(format!("{PREFIX}{key}\n{hash}\n").into_bytes())
     }
 
     fn verify(&self, data: &[u8], signature: &[u8]) -> SignResult<Verification> {

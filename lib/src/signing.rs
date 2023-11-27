@@ -16,6 +16,7 @@
 //! various backends.
 
 use std::fmt::Debug;
+use std::fmt::Display;
 use std::sync::Mutex;
 
 use clru::CLruCache;
@@ -39,6 +40,17 @@ pub enum SigStatus {
     Unknown,
     /// Valid signature that does not match the signed data.
     Bad,
+}
+
+impl Display for SigStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            SigStatus::Good => "good",
+            SigStatus::Unknown => "unknown",
+            SigStatus::Bad => "bad",
+        };
+        write!(f, "{s}")
+    }
 }
 
 /// The result of a signature verification.
