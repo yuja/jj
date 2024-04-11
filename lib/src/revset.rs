@@ -262,6 +262,7 @@ pub enum RevsetExpression<St: ExpressionState> {
     Heads(Rc<Self>),
     Roots(Rc<Self>),
     ForkPoint(Rc<Self>),
+    Predecessors(Rc<Self>),
     Latest {
         candidates: Rc<Self>,
         count: usize,
@@ -483,6 +484,11 @@ impl<St: ExpressionState> RevsetExpression<St> {
         })
     }
 
+    /// Predecessors of `self`, including `self`.
+    pub fn predecessors(self: &Rc<Self>) -> Rc<Self> {
+        Rc::new(Self::Predecessors(self.clone()))
+    }
+
     /// Suppresses name resolution error within `self`.
     pub fn present(self: &Rc<Self>) -> Rc<Self> {
         Rc::new(Self::Present(self.clone()))
@@ -634,6 +640,7 @@ pub enum ResolvedExpression {
     Heads(Box<Self>),
     Roots(Box<Self>),
     ForkPoint(Box<Self>),
+    Predecessors(Box<Self>),
     Latest {
         candidates: Box<Self>,
         count: usize,
@@ -702,6 +709,11 @@ static BUILTIN_FUNCTION_MAP: Lazy<HashMap<&'static str, RevsetFunction>> = Lazy:
         let sources = lower_expression(diagnostics, source_arg, context)?;
         let domain = lower_expression(diagnostics, domain_arg, context)?;
         Ok(sources.reachable(&domain))
+    });
+    map.insert("predecessors", |diagnostics, function, context| {
+        let [arg] = function.expect_exact_arguments()?;
+        let expression = lower_expression(diagnostics, arg, context)?;
+        Ok(expression.predecessors())
     });
     map.insert("none", |_diagnostics, function, _context| {
         function.expect_no_arguments()?;
@@ -1247,6 +1259,9 @@ fn try_transform_expression<St: ExpressionState, E>(
             RevsetExpression::ForkPoint(expression) => {
                 transform_rec(expression, pre, post)?.map(RevsetExpression::ForkPoint)
             }
+            RevsetExpression::Predecessors(candidates) => {
+                transform_rec(candidates, pre, post)?.map(RevsetExpression::Predecessors)
+            }
             RevsetExpression::Latest { candidates, count } => transform_rec(candidates, pre, post)?
                 .map(|candidates| RevsetExpression::Latest {
                     candidates,
@@ -1440,6 +1455,10 @@ where
         RevsetExpression::ForkPoint(expression) => {
             let expression = folder.fold_expression(expression)?;
             RevsetExpression::ForkPoint(expression).into()
+        }
+        RevsetExpression::Predecessors(candidates) => {
+            let candidates = folder.fold_expression(candidates)?;
+            RevsetExpression::Predecessors(candidates).into()
         }
         RevsetExpression::Latest { candidates, count } => {
             let candidates = folder.fold_expression(candidates)?;
@@ -2323,6 +2342,9 @@ impl VisibilityResolutionContext<'_> {
             RevsetExpression::ForkPoint(expression) => {
                 ResolvedExpression::ForkPoint(self.resolve(expression).into())
             }
+            RevsetExpression::Predecessors(candidates) => {
+                ResolvedExpression::Predecessors(self.resolve(candidates).into())
+            }
             RevsetExpression::Latest { candidates, count } => ResolvedExpression::Latest {
                 candidates: self.resolve(candidates).into(),
                 count: *count,
@@ -2428,6 +2450,7 @@ impl VisibilityResolutionContext<'_> {
             | RevsetExpression::Heads(_)
             | RevsetExpression::Roots(_)
             | RevsetExpression::ForkPoint(_)
+            | RevsetExpression::Predecessors(_)
             | RevsetExpression::Latest { .. } => {
                 ResolvedPredicateExpression::Set(self.resolve(expression).into())
             }
@@ -3488,6 +3511,10 @@ mod tests {
         insta::assert_debug_snapshot!(
             optimize(parse("roots(bookmarks() & all())").unwrap()),
             @r#"Roots(CommitRef(Bookmarks(Substring(""))))"#);
+
+        insta::assert_debug_snapshot!(
+            optimize(parse("predecessors(branches() & all())").unwrap()),
+            @r###"Predecessors(CommitRef(Branches(Substring(""))))"###);
 
         insta::assert_debug_snapshot!(
             optimize(parse("latest(bookmarks() & all(), 2)").unwrap()), @r#"

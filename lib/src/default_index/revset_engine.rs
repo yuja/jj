@@ -974,6 +974,28 @@ impl EvaluationContext<'_> {
                 positions.reverse();
                 Ok(Box::new(EagerRevset { positions }))
             }
+            ResolvedExpression::Predecessors(candidates) => {
+                let mut to_visit: BinaryHeap<IndexPosition> = self
+                    .evaluate(candidates)?
+                    .positions()
+                    .attach(index)
+                    .try_collect()?;
+                let mut visited = Vec::new();
+                while let Some(cur_pos) = to_visit.pop() {
+                    if Some(&cur_pos) == visited.last() {
+                        continue;
+                    }
+                    visited.push(cur_pos);
+                    let cur_id = index.entry_by_pos(cur_pos).commit_id();
+                    let cur_commit = self.store.get_commit(&cur_id)?;
+                    for id in cur_commit.predecessor_ids() {
+                        let pos = self.index.commit_id_to_pos(id).unwrap();
+                        assert!(pos < cur_pos);
+                        to_visit.push(pos);
+                    }
+                }
+                Ok(Box::new(EagerRevset { positions: visited }))
+            }
             ResolvedExpression::Latest { candidates, count } => {
                 let candidate_set = self.evaluate(candidates)?;
                 Ok(Box::new(self.take_latest_revset(&*candidate_set, *count)?))
