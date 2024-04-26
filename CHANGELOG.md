@@ -51,6 +51,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   useful for making machine-readable templates by escaping problematic
   characters like `\n`.
 
+* The description of commits backed out by `jj backout` can now be configured
+  using `templates.backout_description`.
+
 ### Fixed bugs
 
 * `jj status` now shows untracked files under untracked directories.
