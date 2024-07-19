@@ -126,9 +126,10 @@ $ jj git push
 Notably, the above workflow creates a new commit for you. The same can be
 achieved without creating a new commit.
 
-> **Warning**
-> We strongly suggest to `jj new` after the example below, as all further edits
-> still get amended to the previous commit.
+!!! warning
+
+    We strongly suggest to `jj new` after the example below, as all further edits
+    still get amended to the previous commit.
 
 ```shell
 $ # Create a new commit on top of the `your-feature` bookmark from above.

@@ -910,9 +910,10 @@ obtained as follows:
   options](https://gist.github.com/ilyagr/1b40f6061d8ad320cee4c12843df1a23) but,
   as of this writing, this is by far the easiest.
 
-  *Warning:* Do *not* use the Homebrew `meld` package.
-  It does not work on ARM Macs and may have problems on recent versions of Mac
-  OS.
+  !!! warning
+
+      Do *not* use the Homebrew `meld` package.
+      It does not work on ARM Macs and may have problems on recent versions of macOS.
 
 `jj` has two diff editing configurations that use Meld: `meld` for a 2-pane view
 and `meld-3` for a [three-pane view](#experimental-3-pane-diff-editing).
