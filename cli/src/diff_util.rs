@@ -36,8 +36,10 @@ use jj_lib::backend::TreeValue;
 use jj_lib::commit::Commit;
 use jj_lib::config::ConfigGetError;
 use jj_lib::config::ConfigGetResultExt as _;
+use jj_lib::conflicts::conflict_diff_hunks;
 use jj_lib::conflicts::materialize_merge_result_to_bytes;
 use jj_lib::conflicts::materialized_diff_stream;
+use jj_lib::conflicts::ConflictDiffHunk;
 use jj_lib::conflicts::ConflictMarkerStyle;
 use jj_lib::conflicts::MaterializedFileValue;
 use jj_lib::conflicts::MaterializedTreeDiffEntry;
@@ -495,6 +497,17 @@ pub fn get_copy_records<'a>(
     Ok(block_on_stream(stream).filter_ok(|record| matcher.matches(&record.target)))
 }
 
+/// How conflicts are processed and rendered in diffs.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ConflictDiffMethod {
+    /// Compares materialized contents.
+    #[default]
+    Materialize,
+    /// Compares individual pairs of left and right contents.
+    Pair,
+}
+
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct LineDiffOptions {
     /// How equivalence of lines is tested.
@@ -548,6 +561,8 @@ fn diff_by_line<'input, T: AsRef<[u8]> + ?Sized + 'input>(
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ColorWordsDiffOptions {
+    /// How conflicts are processed and rendered.
+    pub conflict: ConflictDiffMethod,
     /// Number of context lines to show.
     pub context: usize,
     /// How lines are tokenized and compared.
@@ -570,6 +585,7 @@ impl ColorWordsDiffOptions {
             }
         };
         Ok(ColorWordsDiffOptions {
+            conflict: settings.get("diff.color-words.conflict")?,
             context: settings.get("diff.color-words.context")?,
             line_diff: LineDiffOptions::default(),
             max_inline_alternation,
@@ -586,22 +602,52 @@ impl ColorWordsDiffOptions {
 
 fn show_color_words_diff_hunks(
     formatter: &mut dyn Formatter,
-    contents: [&BStr; 2],
+    [lefts, rights]: [&Merge<BString>; 2],
     options: &ColorWordsDiffOptions,
+    conflict_marker_style: ConflictMarkerStyle,
 ) -> io::Result<()> {
+    let line_number = DiffLineNumber { left: 1, right: 1 };
     let labels = ["removed", "added"];
-    let line_diff = diff_by_line(contents, &options.line_diff);
-    let mut line_number = DiffLineNumber { left: 1, right: 1 };
+    if let (Some(left), Some(right)) = (lefts.as_resolved(), rights.as_resolved()) {
+        let contents = [left, right].map(BStr::new);
+        show_color_words_resolved_hunks(formatter, contents, line_number, labels, options)?;
+        return Ok(());
+    }
+    match options.conflict {
+        ConflictDiffMethod::Materialize => {
+            let left = materialize_merge_result_to_bytes(lefts, conflict_marker_style);
+            let right = materialize_merge_result_to_bytes(rights, conflict_marker_style);
+            let contents = [&left, &right].map(BStr::new);
+            show_color_words_resolved_hunks(formatter, contents, line_number, labels, options)?;
+        }
+        ConflictDiffMethod::Pair => {
+            let contents = [lefts, rights];
+            show_color_words_conflict_hunks(formatter, contents, line_number, labels, options)?;
+        }
+    }
+    Ok(())
+}
+
+fn show_color_words_conflict_hunks(
+    formatter: &mut dyn Formatter,
+    [lefts, rights]: [&Merge<BString>; 2],
+    mut line_number: DiffLineNumber,
+    labels: [&str; 2],
+    options: &ColorWordsDiffOptions,
+) -> io::Result<DiffLineNumber> {
+    let num_lefts = lefts.as_slice().len();
+    let line_diff = diff_by_line(lefts.iter().chain(rights.iter()), &options.line_diff);
     // Matching entries shouldn't appear consecutively in diff of two inputs.
     // However, if the inputs have conflicts, there may be a hunk that can be
     // resolved, resulting [matching, resolved, matching] sequence.
-    let mut contexts = Vec::new();
+    let mut contexts: Vec<[&BStr; 2]> = Vec::new();
     let mut emitted = false;
 
-    for hunk in line_diff.hunks() {
-        let hunk_contents: [&BStr; 2] = hunk.contents[..].try_into().unwrap();
+    for hunk in conflict_diff_hunks(line_diff.hunks(), num_lefts) {
         match hunk.kind {
-            DiffHunkKind::Matching => contexts.push(hunk_contents),
+            // There may be conflicts in matching hunk, but just pick one. It
+            // would be too verbose to show all conflict pairs as context.
+            DiffHunkKind::Matching => contexts.push([hunk.lefts.first(), hunk.rights.first()]),
             DiffHunkKind::Different => {
                 let num_after = if emitted { options.context } else { 0 };
                 let num_before = options.context;
@@ -615,6 +661,132 @@ fn show_color_words_diff_hunks(
                     num_before,
                 )?;
                 contexts.clear();
+                emitted = true;
+                line_number = if let (Some(&left), Some(&right)) =
+                    (hunk.lefts.as_resolved(), hunk.rights.as_resolved())
+                {
+                    let contents = [left, right];
+                    show_color_words_diff_lines(formatter, contents, line_number, labels, options)?
+                } else {
+                    show_color_words_unresolved_hunk(
+                        formatter,
+                        &hunk,
+                        line_number,
+                        labels,
+                        options,
+                    )?
+                }
+            }
+        }
+    }
+
+    let num_after = if emitted { options.context } else { 0 };
+    let num_before = 0;
+    show_color_words_context_lines(
+        formatter,
+        &contexts,
+        line_number,
+        labels,
+        options,
+        num_after,
+        num_before,
+    )
+}
+
+fn show_color_words_unresolved_hunk(
+    formatter: &mut dyn Formatter,
+    hunk: &ConflictDiffHunk,
+    line_number: DiffLineNumber,
+    [label1, label2]: [&str; 2],
+    options: &ColorWordsDiffOptions,
+) -> io::Result<DiffLineNumber> {
+    let hunk_desc = if hunk.lefts.is_resolved() {
+        "Created conflict"
+    } else if hunk.rights.is_resolved() {
+        "Resolved conflict"
+    } else {
+        "Modified conflict"
+    };
+    writeln!(formatter.labeled("hunk_header"), "<<<<<<< {hunk_desc}")?;
+
+    // Pad with identical (negative, positive) terms. It's common that one of
+    // the sides is resolved, or both sides have the same numbers of terms. If
+    // both sides are conflicts, and the numbers of terms are different, the
+    // choice of padding terms is arbitrary.
+    let num_terms = max(hunk.lefts.as_slice().len(), hunk.rights.as_slice().len());
+    let lefts = hunk.lefts.iter().enumerate();
+    let rights = hunk.rights.iter().enumerate();
+    let padded = iter::zip(
+        lefts.chain(iter::repeat((0, hunk.lefts.first()))),
+        rights.chain(iter::repeat((0, hunk.rights.first()))),
+    )
+    .take(num_terms);
+    let mut max_line_number = line_number;
+    for (i, ((left_index, &left_content), (right_index, &right_content))) in padded.enumerate() {
+        let positive = i % 2 == 0;
+        // TODO: better hunk description? 1-based index might be better. It
+        // should be compatible with the "tree-set" language. #5307
+        if positive {
+            writeln!(
+                formatter.labeled("hunk_header"),
+                "+++++++ left #{left_index} to right #{right_index}"
+            )?;
+        } else {
+            writeln!(
+                formatter.labeled("hunk_header"),
+                "------- left #{left_index} to right #{right_index} (base)"
+            )?;
+        }
+        let contents = [left_content, right_content];
+        let labels = match positive {
+            true => [label1, label2],
+            false => [label2, label1],
+        };
+        // Individual hunk pair may be largely the same, so diff it again.
+        let new_line_number =
+            show_color_words_resolved_hunks(formatter, contents, line_number, labels, options)?;
+        // Take max to assign unique line numbers to trailing hunks. The line
+        // numbers can't be real anyway because preceding conflict hunks might
+        // have been resolved.
+        max_line_number.left = max(max_line_number.left, new_line_number.left);
+        max_line_number.right = max(max_line_number.right, new_line_number.right);
+    }
+
+    writeln!(formatter.labeled("hunk_header"), ">>>>>>> Conflict ends")?;
+    Ok(max_line_number)
+}
+
+fn show_color_words_resolved_hunks(
+    formatter: &mut dyn Formatter,
+    contents: [&BStr; 2],
+    mut line_number: DiffLineNumber,
+    labels: [&str; 2],
+    options: &ColorWordsDiffOptions,
+) -> io::Result<DiffLineNumber> {
+    let line_diff = diff_by_line(contents, &options.line_diff);
+    // Matching entries shouldn't appear consecutively in diff of two inputs.
+    let mut context: Option<[&BStr; 2]> = None;
+    let mut emitted = false;
+
+    for hunk in line_diff.hunks() {
+        let hunk_contents: [&BStr; 2] = hunk.contents[..].try_into().unwrap();
+        match hunk.kind {
+            DiffHunkKind::Matching => {
+                context = Some(hunk_contents);
+            }
+            DiffHunkKind::Different => {
+                let num_after = if emitted { options.context } else { 0 };
+                let num_before = options.context;
+                line_number = show_color_words_context_lines(
+                    formatter,
+                    context.as_slice(),
+                    line_number,
+                    labels,
+                    options,
+                    num_after,
+                    num_before,
+                )?;
+                context = None;
                 emitted = true;
                 line_number = show_color_words_diff_lines(
                     formatter,
@@ -631,14 +803,13 @@ fn show_color_words_diff_hunks(
     let num_before = 0;
     show_color_words_context_lines(
         formatter,
-        &contexts,
+        context.as_slice(),
         line_number,
         labels,
         options,
         num_after,
         num_before,
-    )?;
-    Ok(())
+    )
 }
 
 /// Prints `num_after` lines, ellipsis, and `num_before` lines.
@@ -875,9 +1046,9 @@ struct FileContent<T> {
     contents: T,
 }
 
-impl FileContent<BString> {
-    pub(crate) fn is_empty(&self) -> bool {
-        self.contents.is_empty()
+impl FileContent<Merge<BString>> {
+    fn is_empty(&self) -> bool {
+        self.contents.as_resolved().is_some_and(|c| c.is_empty())
     }
 }
 
@@ -912,6 +1083,13 @@ fn diff_content(
         |content| content,
         |contents| materialize_merge_result_to_bytes(&contents, conflict_marker_style),
     )
+}
+
+fn diff_content_as_merge(
+    path: &RepoPath,
+    value: MaterializedTreeValue,
+) -> BackendResult<FileContent<Merge<BString>>> {
+    diff_content_with(path, value, Merge::resolved, |contents| contents)
 }
 
 fn diff_content_with<T>(
@@ -989,6 +1167,7 @@ pub fn show_color_words_diff(
     options: &ColorWordsDiffOptions,
     conflict_marker_style: ConflictMarkerStyle,
 ) -> Result<(), DiffRenderError> {
+    let empty_content = || Merge::resolved(BString::default());
     let mut diff_stream = materialized_diff_stream(store, tree_diff);
     async {
         while let Some(MaterializedTreeDiffEntry { path, values }) = diff_stream.next().await {
@@ -1023,7 +1202,7 @@ pub fn show_color_words_diff(
                     formatter.labeled("header"),
                     "Added {description} {right_ui_path}:"
                 )?;
-                let right_content = diff_content(right_path, right_value, conflict_marker_style)?;
+                let right_content = diff_content_as_merge(right_path, right_value)?;
                 if right_content.is_empty() {
                     writeln!(formatter.labeled("empty"), "    (empty)")?;
                 } else if right_content.is_binary {
@@ -1031,8 +1210,9 @@ pub fn show_color_words_diff(
                 } else {
                     show_color_words_diff_hunks(
                         formatter,
-                        [BStr::new(""), right_content.contents.as_ref()],
+                        [&empty_content(), &right_content.contents],
                         options,
+                        conflict_marker_style,
                     )?;
                 }
             } else if right_value.is_present() {
@@ -1080,8 +1260,8 @@ pub fn show_color_words_diff(
                         )
                     }
                 };
-                let left_content = diff_content(left_path, left_value, conflict_marker_style)?;
-                let right_content = diff_content(right_path, right_value, conflict_marker_style)?;
+                let left_content = diff_content_as_merge(left_path, left_value)?;
+                let right_content = diff_content_as_merge(right_path, right_value)?;
                 if left_path == right_path {
                     writeln!(
                         formatter.labeled("header"),
@@ -1098,8 +1278,9 @@ pub fn show_color_words_diff(
                 } else if left_content.contents != right_content.contents {
                     show_color_words_diff_hunks(
                         formatter,
-                        [&left_content.contents, &right_content.contents].map(BStr::new),
+                        [&left_content.contents, &right_content.contents],
                         options,
+                        conflict_marker_style,
                     )?;
                 }
             } else {
@@ -1108,7 +1289,7 @@ pub fn show_color_words_diff(
                     formatter.labeled("header"),
                     "Removed {description} {right_ui_path}:"
                 )?;
-                let left_content = diff_content(left_path, left_value, conflict_marker_style)?;
+                let left_content = diff_content_as_merge(left_path, left_value)?;
                 if left_content.is_empty() {
                     writeln!(formatter.labeled("empty"), "    (empty)")?;
                 } else if left_content.is_binary {
@@ -1116,8 +1297,9 @@ pub fn show_color_words_diff(
                 } else {
                     show_color_words_diff_hunks(
                         formatter,
-                        [left_content.contents.as_ref(), BStr::new("")],
+                        [&left_content.contents, &empty_content()],
                         options,
+                        conflict_marker_style,
                     )?;
                 }
             }
