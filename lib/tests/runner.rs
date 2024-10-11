@@ -3,8 +3,8 @@ use std::path::Path;
 #[test]
 fn test_no_forgotten_test_files() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let test_dir = manifest_dir.join("tests");
-    testutils::assert_no_forgotten_test_files(manifest_dir, &test_dir);
+    let test_dir = manifest_dir;
+    testutils::assert_no_forgotten_test_files(manifest_dir, test_dir);
 }
 
 mod test_annotate;
