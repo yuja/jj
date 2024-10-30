@@ -228,15 +228,31 @@ fn merge_inner<'input, T: AsRef<[u8]>, B: FromMergeHunks<'input>>(inputs: &'inpu
     // more than 3 parts?
     let num_diffs = inputs.removes().len();
     let diff = Diff::by_line(inputs.removes().chain(inputs.adds()));
-    let hunks = resolve_diff_hunks(&diff, num_diffs).map(MergeHunk::Borrowed);
+    let hunks = resolve_diff_hunks(&diff, num_diffs).map(merge_hunk_by_word);
     B::from_hunks(hunks)
+}
+
+fn merge_hunk_by_word(inputs: Merge<&BStr>) -> MergeHunk<'_> {
+    if inputs.is_resolved() {
+        return MergeHunk::Borrowed(inputs);
+    }
+    let num_diffs = inputs.removes().len();
+    let diff = Diff::by_word(inputs.removes().chain(inputs.adds()));
+    let hunks = resolve_diff_hunks(&diff, num_diffs).map(MergeHunk::Borrowed);
+    // We can instead return partially-merged hunk. This would be more
+    // consistent with the line-based merge logic, but might produce surprising
+    // results.
+    if let Some(content) = collect_resolved(hunks) {
+        return MergeHunk::Owned(Merge::resolved(content));
+    }
+    drop(diff);
+    MergeHunk::Borrowed(inputs)
 }
 
 /// `Cow`-like type over `Merge<T>`.
 #[derive(Clone, Debug)]
 enum MergeHunk<'input> {
     Borrowed(Merge<&'input BStr>),
-    #[allow(dead_code)] // TODO
     Owned(Merge<BString>),
 }
 
@@ -664,5 +680,29 @@ mod tests {
             }
         "};
         assert_eq!(merge(&conflict([left, base, right])), resolved(merged));
+    }
+
+    #[test]
+    fn test_merge_word_hunk() {
+        // No context line in between, but "\n" is a context word
+        assert_eq!(
+            merge(&conflict([b"c\nb\n", b"a\nb\n", b"a\nd\n"])),
+            resolved(b"c\nd\n")
+        );
+        // Both sides added to different positions
+        assert_eq!(merge(&conflict([b"a b", b"a", b"c a"])), resolved(b"c a b"));
+        // Both sides added to the same position: can't resolve word-level
+        // conflicts and the whole line should be left as a conflict
+        assert_eq!(
+            merge(&conflict([b"a b", b"a", b"a c"])),
+            conflict([b"a b", b"a", b"a c"])
+        );
+        // One side added, both sides added to the same position: the former
+        // word-level conflict could be resolved, but we preserve the original
+        // content in that case
+        assert_eq!(
+            merge(&conflict([b"a b", b"a", b"x a c"])),
+            conflict([b"a b", b"a", b"x a c"])
+        );
     }
 }
