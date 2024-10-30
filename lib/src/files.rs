@@ -218,6 +218,10 @@ fn merge_hunks(diff: &Diff, num_diffs: usize) -> MergeResult {
                 );
                 if let Some(resolved) = merge.resolve_trivial() {
                     resolved_hunk.extend_from_slice(resolved);
+                } else if let Some(resolved) =
+                    try_merge_hunks(&Diff::by_word(diff_hunk.contents), num_diffs)
+                {
+                    resolved_hunk.extend_from_slice(&resolved);
                 } else {
                     if !resolved_hunk.is_empty() {
                         merge_hunks.push(Merge::resolved(resolved_hunk));
@@ -237,6 +241,27 @@ fn merge_hunks(diff: &Diff, num_diffs: usize) -> MergeResult {
         }
         MergeResult::Conflict(merge_hunks)
     }
+}
+
+fn try_merge_hunks(diff: &Diff, num_diffs: usize) -> Option<BString> {
+    let mut resolved_hunk = BString::new(vec![]);
+    for diff_hunk in diff.hunks() {
+        match diff_hunk.kind {
+            DiffHunkKind::Matching => {
+                debug_assert!(diff_hunk.contents.iter().all_equal());
+                resolved_hunk.extend_from_slice(diff_hunk.contents[0]);
+            }
+            DiffHunkKind::Different => {
+                let merge = Merge::from_removes_adds(
+                    diff_hunk.contents[..num_diffs].iter().copied(),
+                    diff_hunk.contents[num_diffs..].iter().copied(),
+                );
+                let resolved = merge.resolve_trivial()?;
+                resolved_hunk.extend_from_slice(resolved);
+            }
+        }
+    }
+    Some(resolved_hunk)
 }
 
 #[cfg(test)]
@@ -522,6 +547,29 @@ b {
 }
 "
             ))
+        );
+    }
+
+    #[test]
+    fn test_merge_word_hunk() {
+        // No context line in between, but "\n" is a context word
+        assert_eq!(
+            merge(&[b"a\nb\n"], &[b"c\nb\n", b"a\nd\n"]),
+            MergeResult::Resolved(hunk(b"c\nd\n"))
+        );
+        // Both sides added to different positions
+        assert_eq!(
+            merge(&[b"a"], &[b"a b", b"c a"]),
+            MergeResult::Resolved(hunk(b"c a b"))
+        );
+        // Both sides added to the same position: can't resolve word-level
+        // conflicts and the whole line should be left as a conflict
+        assert_eq!(
+            merge(&[b"a"], &[b"a b", b"a c"]),
+            MergeResult::Conflict(vec![Merge::from_removes_adds(
+                [hunk(b"a")],
+                [hunk(b"a b"), hunk(b"a c")],
+            )])
         );
     }
 }
