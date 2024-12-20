@@ -503,6 +503,7 @@ fn test_has_changed() {
     mut_repo.set_local_bookmark_target("main", RefTarget::normal(commit2.id().clone()));
     assert!(mut_repo.has_changes());
     mut_repo.set_local_bookmark_target("main", RefTarget::normal(commit1.id().clone()));
+    mut_repo.remove_head(commit2.id());
     assert!(!mut_repo.has_changes());
 
     mut_repo.set_remote_bookmark("main", "origin", normal_remote_ref(commit2.id()));
@@ -714,4 +715,28 @@ fn test_reparent_descendants() {
             assert_ne!(parent_ids, rewritten_parent_ids);
         }
     }
+}
+
+#[test]
+fn test_bookmark_hidden_commit() {
+    // Test that MutableRepo::set_local_bookmark_target() on a hidden commit makes
+    // it visible.
+    let test_repo = TestRepo::init();
+    let repo = &test_repo.repo;
+    let root_commit = repo.store().root_commit();
+
+    let mut tx = repo.start_transaction();
+    let wc_commit = write_random_commit(tx.repo_mut());
+
+    // Intentionally not doing tx.commit, so the commit id is not tracked
+    // in the view head ids.
+
+    let mut tx = repo.start_transaction();
+    tx.repo_mut()
+        .set_local_bookmark_target("b", RefTarget::normal(wc_commit.id().clone()));
+    let repo = tx.commit("test").unwrap();
+    assert_eq!(
+        *repo.view().heads(),
+        hashset! {wc_commit.id().clone(), root_commit.id().clone()}
+    );
 }
