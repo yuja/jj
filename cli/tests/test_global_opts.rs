@@ -831,9 +831,15 @@ fn test_default_config() {
     let maskable_op_user = whoami::fallible::hostname().is_ok_and(|s| is_maskable_str(&s))
         && whoami::fallible::username().is_ok_and(|s| is_maskable_str(&s));
 
-    let (stdout, stderr) = jj_cmd_ok(test_env.env_root(), &["config", "list"]);
-    insta::assert_snapshot!(stdout, @"");
-    insta::assert_snapshot!(stderr, @"Warning: No config to list");
+    let (stdout, stderr) = jj_cmd_ok(
+        test_env.env_root(),
+        &["config", "list", r#"-Tname ++ "\n""#],
+    );
+    insta::assert_snapshot!(stdout, @r"
+    operation.hostname
+    operation.username
+    ");
+    insta::assert_snapshot!(stderr, @"");
 
     let repo_path = test_env.env_root().join("repo");
     let (stdout, stderr) = jj_cmd_ok(test_env.env_root(), &["git", "init", "repo"]);
