@@ -171,7 +171,7 @@ where
 /// For example, topological order of chronological data should respect
 /// timestamp (except a few outliers caused by clock skew.)
 ///
-/// Use `topo_order_reverse()` if the DAG is heavily bookmarked. This can
+/// Use `topo_order_reverse()` if the DAG is heavily branched. This can
 /// only process linear part lazily.
 pub fn topo_order_reverse_lazy<T, ID, II, NI>(
     start: II,
@@ -286,9 +286,9 @@ impl<T: Ord, ID: Hash + Eq + Clone, E> TopoOrderReverseLazyInner<T, ID, E> {
 ///  o A
 /// ```
 ///
-/// If a bookmark reached to root (empty neighbors), the graph can't be split
-/// anymore because the other bookmark may be connected to a descendant of
-/// the rooted bookmark.
+/// If a branch reached to root (empty neighbors), the graph can't be split
+/// anymore because the other branch may be connected to a descendant of
+/// the rooted branch.
 ///
 /// ```text
 ///  o | C
@@ -809,7 +809,7 @@ mod tests {
         assert_eq!(common, vec!['E', 'D', 'C', 'B', 'a']);
 
         // The root node 'a' is visited before 'C'. If the graph were split there,
-        // the bookmark 'C->B->a' would be orphaned.
+        // the branch 'C->B->a' would be orphaned.
         let common = topo_order_reverse_lazy(vec!['E'], id_fn, neighbors_fn).collect_vec();
         assert_eq!(common, vec!['E', 'D', 'C', 'B', 'a']);
 
