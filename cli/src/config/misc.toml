@@ -16,6 +16,7 @@ context = 3
 [git]
 private-commits = "none()"
 push-bookmark-prefix = "push-"
+push-new-bookmarks = false
 sign-on-push = false
 
 [ui]
