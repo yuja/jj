@@ -1438,9 +1438,13 @@ impl MutableRepo {
             // An empty head_ids set is padded with the root_commit_id, but the
             // root id is unwanted during the heads resolution.
             view.head_ids.remove(root_commit_id);
+            // It is unclear if `heads` can never fail for default implementation,
+            // but it can definitely fail for non-default implementations.
+            // TODO: propagate errors.
             view.head_ids = self
                 .index()
                 .heads(&mut view.head_ids.iter())
+                .unwrap()
                 .into_iter()
                 .collect();
         }

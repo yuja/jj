@@ -41,6 +41,7 @@ use crate::backend::CommitId;
 use crate::index::AllHeadsForGcUnsupported;
 use crate::index::ChangeIdIndex;
 use crate::index::Index;
+use crate::index::IndexError;
 use crate::index::MutableIndex;
 use crate::index::ReadonlyIndex;
 use crate::object_id::HexPrefix;
@@ -633,7 +634,10 @@ impl Index for DefaultReadonlyIndex {
         Ok(Box::new(self.as_composite().all_heads()))
     }
 
-    fn heads(&self, candidates: &mut dyn Iterator<Item = &CommitId>) -> Vec<CommitId> {
+    fn heads(
+        &self,
+        candidates: &mut dyn Iterator<Item = &CommitId>,
+    ) -> Result<Vec<CommitId>, IndexError> {
         self.as_composite().heads(candidates)
     }
 

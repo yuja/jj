@@ -43,6 +43,7 @@ use crate::hex_util;
 use crate::index::AllHeadsForGcUnsupported;
 use crate::index::ChangeIdIndex;
 use crate::index::Index;
+use crate::index::IndexError;
 use crate::object_id::HexPrefix;
 use crate::object_id::ObjectId;
 use crate::object_id::PrefixResolution;
@@ -487,15 +488,19 @@ impl Index for &CompositeIndex {
         Ok(Box::new(self.all_heads()))
     }
 
-    fn heads(&self, candidate_ids: &mut dyn Iterator<Item = &CommitId>) -> Vec<CommitId> {
+    fn heads(
+        &self,
+        candidate_ids: &mut dyn Iterator<Item = &CommitId>,
+    ) -> Result<Vec<CommitId>, IndexError> {
         let candidate_positions: BTreeSet<_> = candidate_ids
             .map(|id| self.commit_id_to_pos(id).unwrap())
             .collect();
 
-        self.heads_pos(candidate_positions)
+        Ok(self
+            .heads_pos(candidate_positions)
             .iter()
             .map(|pos| self.entry_by_pos(*pos).commit_id())
-            .collect()
+            .collect())
     }
 
     fn evaluate_revset<'index>(
