@@ -23,7 +23,7 @@ jobs:
           os: ubuntu-24.04
           target: x86_64-unknown-linux-musl
         - build: linux-aarch64-musl
-          os: ubuntu-24.04
+          os: ubuntu-24.04-arm
           target: aarch64-unknown-linux-musl
         - build: macos-x86_64
           os: macos-13
@@ -48,17 +48,9 @@ jobs:
       with:
         toolchain: stable
         target: ${{ matrix.target }}
-    - name: Download cross-compilation tool (linux-aarch64)
-      if: matrix.target == 'aarch64-unknown-linux-musl'
-      run: wget -c https://github.com/cross-rs/cross/releases/download/v0.2.5/cross-x86_64-unknown-linux-gnu.tar.gz -O - | tar -xz
     - name: Build release binary
       shell: bash
-      run: |
-        CARGO_CMD=cargo
-        if [ "${{ matrix.target }}" = "aarch64-unknown-linux-musl" ]; then
-          CARGO_CMD=$PWD/cross
-        fi
-        $CARGO_CMD build --target ${{ matrix.target }} --verbose --release --features packaging,vendored-openssl
+      run: cargo build --target ${{ matrix.target }} --verbose --release --features packaging,vendored-openssl
     - name: Build archive
       shell: bash
       run: |
