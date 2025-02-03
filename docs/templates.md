@@ -59,10 +59,14 @@ The following functions are defined.
   content by adding both leading and trailing fill characters. If an odd number
   of fill characters are needed, the trailing fill will be one longer than the
   leading fill. The `content` shouldn't have newline characters.
-* `truncate_start(width: Integer, content: Template)`: Truncate `content` by
-  removing leading characters. The `content` shouldn't have newline character.
-* `truncate_end(width: Integer, content: Template)`: Truncate `content` by
-  removing trailing characters. The `content` shouldn't have newline character.
+* `truncate_start(width: Integer, content: Template[, ellipsis: Template])`:
+  Truncate `content` by removing leading characters. The `content` shouldn't
+  have newline character. If `ellipsis` is provided and `content` was truncated,
+  prepend the `ellipsis` to the result.
+* `truncate_end(width: Integer, content: Template[, ellipsis: Template])`:
+  Truncate `content` by removing trailing characters. The `content` shouldn't
+  have newline character. If `ellipsis` is provided and `content` was truncated,
+  append the `ellipsis` to the result.
 * `label(label: Template, content: Template) -> Template`: Apply label to
   the content. The `label` is evaluated as a space-separated string.
 * `raw_escape_sequence(content: Template) -> Template`: Preserves any escape

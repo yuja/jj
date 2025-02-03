@@ -230,18 +230,39 @@ fn count_start_zero_width_chars_bytes(text: &[u8]) -> usize {
 pub fn write_truncated_start(
     formatter: &mut dyn Formatter,
     recorded_content: &FormatRecorder,
+    recorded_ellipsis: &FormatRecorder,
     max_width: usize,
 ) -> io::Result<usize> {
     let data = recorded_content.data();
-    let (start, truncated_width) = truncate_start_pos_bytes(data, max_width);
+    let data_width = String::from_utf8_lossy(data).width();
+    let ellipsis_data = recorded_ellipsis.data();
+    let ellipsis_width = String::from_utf8_lossy(ellipsis_data).width();
+
+    let (start, mut truncated_width) = if data_width > max_width {
+        truncate_start_pos_bytes(data, max_width.saturating_sub(ellipsis_width))
+    } else {
+        (0, data_width)
+    };
+
+    let mut replay_truncated = |recorded: &FormatRecorder, truncated_start: usize| {
+        recorded.replay_with(formatter, |formatter, range| {
+            let start = cmp::max(range.start, truncated_start);
+            if start < range.end {
+                formatter.write_all(&recorded.data()[start..range.end])?;
+            }
+            Ok(())
+        })
+    };
+
+    if data_width > max_width {
+        // The ellipsis itself may be larger than max_width, so maybe truncate it too.
+        let (start, ellipsis_width) = truncate_start_pos_bytes(ellipsis_data, max_width);
+        let truncated_start = start + count_start_zero_width_chars_bytes(&ellipsis_data[start..]);
+        truncated_width += ellipsis_width;
+        replay_truncated(recorded_ellipsis, truncated_start)?;
+    }
     let truncated_start = start + count_start_zero_width_chars_bytes(&data[start..]);
-    recorded_content.replay_with(formatter, |formatter, range| {
-        let start = cmp::max(range.start, truncated_start);
-        if start < range.end {
-            formatter.write_all(&data[start..range.end])?;
-        }
-        Ok(())
-    })?;
+    replay_truncated(recorded_content, truncated_start)?;
     Ok(truncated_width)
 }
 
@@ -252,17 +273,37 @@ pub fn write_truncated_start(
 pub fn write_truncated_end(
     formatter: &mut dyn Formatter,
     recorded_content: &FormatRecorder,
+    recorded_ellipsis: &FormatRecorder,
     max_width: usize,
 ) -> io::Result<usize> {
     let data = recorded_content.data();
-    let (truncated_end, truncated_width) = truncate_end_pos_bytes(data, max_width);
-    recorded_content.replay_with(formatter, |formatter, range| {
-        let end = cmp::min(range.end, truncated_end);
-        if range.start < end {
-            formatter.write_all(&data[range.start..end])?;
-        }
-        Ok(())
-    })?;
+    let data_width = String::from_utf8_lossy(data).width();
+    let ellipsis_data = recorded_ellipsis.data();
+    let ellipsis_width = String::from_utf8_lossy(ellipsis_data).width();
+
+    let (truncated_end, mut truncated_width) = if data_width > max_width {
+        truncate_end_pos_bytes(data, max_width.saturating_sub(ellipsis_width))
+    } else {
+        (data.len(), data_width)
+    };
+
+    let mut replay_truncated = |recorded: &FormatRecorder, truncated_end: usize| {
+        recorded.replay_with(formatter, |formatter, range| {
+            let end = cmp::min(range.end, truncated_end);
+            if range.start < end {
+                formatter.write_all(&recorded.data()[range.start..end])?;
+            }
+            Ok(())
+        })
+    };
+
+    replay_truncated(recorded_content, truncated_end)?;
+    if data_width > max_width {
+        // The ellipsis itself may be larger than max_width, so maybe truncate it too.
+        let (truncated_end, ellipsis_width) = truncate_end_pos_bytes(ellipsis_data, max_width);
+        truncated_width += ellipsis_width;
+        replay_truncated(recorded_ellipsis, truncated_end)?;
+    }
     Ok(truncated_width)
 }
 
@@ -693,6 +734,7 @@ mod tests {
 
     #[test]
     fn test_write_truncated_labeled() {
+        let ellipsis_recorder = FormatRecorder::new();
         let mut recorder = FormatRecorder::new();
         for (label, word) in [("red", "foo"), ("cyan", "bar")] {
             recorder.push_label(label).unwrap();
@@ -702,128 +744,368 @@ mod tests {
 
         // Truncate start
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_start(formatter, &recorder, 6).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 6).map(|_| ())
+            }),
             @"[38;5;1mfoo[39m[38;5;6mbar[39m"
         );
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_start(formatter, &recorder, 5).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 5).map(|_| ())
+            }),
             @"[38;5;1moo[39m[38;5;6mbar[39m"
         );
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_start(formatter, &recorder, 3).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 3).map(|_| ())
+            }),
             @"[38;5;6mbar[39m"
         );
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_start(formatter, &recorder, 2).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 2).map(|_| ())
+            }),
             @"[38;5;6mar[39m"
         );
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_start(formatter, &recorder, 0).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 0).map(|_| ())
+            }),
             @""
         );
 
         // Truncate end
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_end(formatter, &recorder, 6).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 6).map(|_| ())
+            }),
             @"[38;5;1mfoo[39m[38;5;6mbar[39m"
         );
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_end(formatter, &recorder, 5).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 5).map(|_| ())
+            }),
             @"[38;5;1mfoo[39m[38;5;6mba[39m"
         );
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_end(formatter, &recorder, 3).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 3).map(|_| ())
+            }),
             @"[38;5;1mfoo[39m"
         );
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_end(formatter, &recorder, 2).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 2).map(|_| ())
+            }),
             @"[38;5;1mfo[39m"
         );
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_end(formatter, &recorder, 0).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 0).map(|_| ())
+            }),
             @""
         );
     }
 
     #[test]
     fn test_write_truncated_non_ascii_chars() {
+        let ellipsis_recorder = FormatRecorder::new();
         let mut recorder = FormatRecorder::new();
         write!(recorder, "a\u{300}bc\u{300}一二三").unwrap();
 
         // Truncate start
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_start(formatter, &recorder, 1).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 1).map(|_| ())
+            }),
             @""
         );
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_start(formatter, &recorder, 2).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 2).map(|_| ())
+            }),
             @"三"
         );
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_start(formatter, &recorder, 3).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 3).map(|_| ())
+            }),
             @"三"
         );
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_start(formatter, &recorder, 6).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 6).map(|_| ())
+            }),
             @"一二三"
         );
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_start(formatter, &recorder, 7).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 7).map(|_| ())
+            }),
             @"c̀一二三"
         );
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_start(formatter, &recorder, 9).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 9).map(|_| ())
+            }),
             @"àbc̀一二三"
         );
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_start(formatter, &recorder, 10).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 10).map(|_| ())
+            }),
             @"àbc̀一二三"
         );
 
         // Truncate end
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_end(formatter, &recorder, 1).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 1).map(|_| ())
+            }),
             @"à"
         );
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_end(formatter, &recorder, 4).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 4).map(|_| ())
+            }),
             @"àbc̀"
         );
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_end(formatter, &recorder, 5).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 5).map(|_| ())
+            }),
             @"àbc̀一"
         );
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_end(formatter, &recorder, 9).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 9).map(|_| ())
+            }),
             @"àbc̀一二三"
         );
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_end(formatter, &recorder, 10).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 10).map(|_| ())
+            }),
             @"àbc̀一二三"
         );
     }
 
     #[test]
     fn test_write_truncated_empty_content() {
+        let ellipsis_recorder = FormatRecorder::new();
         let recorder = FormatRecorder::new();
 
         // Truncate start
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_start(formatter, &recorder, 0).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 0).map(|_| ())
+            }),
             @""
         );
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_start(formatter, &recorder, 1).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 1).map(|_| ())
+            }),
             @""
         );
 
         // Truncate end
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_end(formatter, &recorder, 0).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 0).map(|_| ())
+            }),
             @""
         );
         insta::assert_snapshot!(
-            format_colored(|formatter| write_truncated_end(formatter, &recorder, 1).map(|_| ())),
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 1).map(|_| ())
+            }),
+            @""
+        );
+    }
+
+    #[test]
+    fn test_write_truncated_ellipsis_labeled() {
+        let ellipsis_recorder = FormatRecorder::with_data("..");
+        let mut recorder = FormatRecorder::new();
+        for (label, word) in [("red", "foo"), ("cyan", "bar")] {
+            recorder.push_label(label).unwrap();
+            write!(recorder, "{word}").unwrap();
+            recorder.pop_label().unwrap();
+        }
+
+        // Truncate start
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 6).map(|_| ())
+            }),
+            @"[38;5;1mfoo[39m[38;5;6mbar[39m"
+        );
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 5).map(|_| ())
+            }),
+            @"..[38;5;6mbar[39m"
+        );
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 3).map(|_| ())
+            }),
+            @"..[38;5;6mr[39m"
+        );
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 2).map(|_| ())
+            }),
+            @".."
+        );
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 1).map(|_| ())
+            }),
+            @"."
+        );
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 0).map(|_| ())
+            }),
+            @""
+        );
+
+        // Truncate end
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 6).map(|_| ())
+            }),
+            @"[38;5;1mfoo[39m[38;5;6mbar[39m"
+        );
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 5).map(|_| ())
+            }),
+            @"[38;5;1mfoo[39m.."
+        );
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 3).map(|_| ())
+            }),
+            @"[38;5;1mf[39m.."
+        );
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 2).map(|_| ())
+            }),
+            @".."
+        );
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 1).map(|_| ())
+            }),
+            @"."
+        );
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 0).map(|_| ())
+            }),
+            @""
+        );
+    }
+
+    #[test]
+    fn test_write_truncated_ellipsis_non_ascii_chars() {
+        let ellipsis_recorder = FormatRecorder::with_data("..");
+        let mut recorder = FormatRecorder::new();
+        write!(recorder, "a\u{300}bc\u{300}一二三").unwrap();
+
+        // Truncate start
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 1).map(|_| ())
+            }),
+            @"."
+        );
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 2).map(|_| ())
+            }),
+            @".."
+        );
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 4).map(|_| ())
+            }),
+            @"..三"
+        );
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 7).map(|_| ())
+            }),
+            @"..二三"
+        );
+
+        // Truncate end
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 1).map(|_| ())
+            }),
+            @"."
+        );
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 4).map(|_| ())
+            }),
+            @"àb.."
+        );
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 5).map(|_| ())
+            }),
+            @"àbc̀.."
+        );
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 9).map(|_| ())
+            }),
+            @"àbc̀一二三"
+        );
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 10).map(|_| ())
+            }),
+            @"àbc̀一二三"
+        );
+    }
+
+    #[test]
+    fn test_write_truncated_ellipsis_empty_content() {
+        let ellipsis_recorder = FormatRecorder::with_data("..");
+        let recorder = FormatRecorder::new();
+
+        // Truncate start, empty content
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 0).map(|_| ())
+            }),
+            @""
+        );
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_start(formatter, &recorder, &ellipsis_recorder, 1).map(|_| ())
+            }),
+            @""
+        );
+
+        // Truncate end
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 0).map(|_| ())
+            }),
+            @""
+        );
+        insta::assert_snapshot!(
+            format_colored(|formatter| {
+                write_truncated_end(formatter, &recorder, &ellipsis_recorder, 1).map(|_| ())
+            }),
             @""
         );
     }

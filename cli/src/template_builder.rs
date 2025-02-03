@@ -1494,22 +1494,32 @@ fn builtin_functions<'a, L: TemplateLanguage<'a> + ?Sized>() -> TemplateBuildFun
     map.insert(
         "truncate_start",
         |language, diagnostics, build_ctx, function| {
-            let [width_node, content_node] = function.expect_exact_arguments()?;
+            let ([width_node, content_node], [ellipsis_node]) =
+                function.expect_named_arguments(&["", "", "ellipsis"])?;
             let width = expect_usize_expression(language, diagnostics, build_ctx, width_node)?;
             let content =
                 expect_template_expression(language, diagnostics, build_ctx, content_node)?;
-            let template = new_truncate_template(content, width, text_util::write_truncated_start);
+            let ellipsis = ellipsis_node
+                .map(|node| expect_template_expression(language, diagnostics, build_ctx, node))
+                .transpose()?;
+            let template =
+                new_truncate_template(content, ellipsis, width, text_util::write_truncated_start);
             Ok(L::wrap_template(template))
         },
     );
     map.insert(
         "truncate_end",
         |language, diagnostics, build_ctx, function| {
-            let [width_node, content_node] = function.expect_exact_arguments()?;
+            let ([width_node, content_node], [ellipsis_node]) =
+                function.expect_named_arguments(&["", "", "ellipsis"])?;
             let width = expect_usize_expression(language, diagnostics, build_ctx, width_node)?;
             let content =
                 expect_template_expression(language, diagnostics, build_ctx, content_node)?;
-            let template = new_truncate_template(content, width, text_util::write_truncated_end);
+            let ellipsis = ellipsis_node
+                .map(|node| expect_template_expression(language, diagnostics, build_ctx, node))
+                .transpose()?;
+            let template =
+                new_truncate_template(content, ellipsis, width, text_util::write_truncated_end);
             Ok(L::wrap_template(template))
         },
     );
@@ -1643,18 +1653,29 @@ where
 
 fn new_truncate_template<'a, W>(
     content: Box<dyn Template + 'a>,
+    ellipsis: Option<Box<dyn Template + 'a>>,
     width: Box<dyn TemplateProperty<Output = usize> + 'a>,
     write_truncated: W,
 ) -> Box<dyn Template + 'a>
 where
-    W: Fn(&mut dyn Formatter, &FormatRecorder, usize) -> io::Result<usize> + 'a,
+    W: Fn(&mut dyn Formatter, &FormatRecorder, &FormatRecorder, usize) -> io::Result<usize> + 'a,
 {
+    let default_ellipsis = FormatRecorder::with_data("");
     let template = ReformatTemplate::new(content, move |formatter, recorded| {
         let width = match width.extract() {
             Ok(width) => width,
             Err(err) => return formatter.handle_error(err),
         };
-        write_truncated(formatter.as_mut(), recorded, width)?;
+        let mut ellipsis_recorder;
+        let recorded_ellipsis = if let Some(ellipsis) = &ellipsis {
+            let rewrap = formatter.rewrap_fn();
+            ellipsis_recorder = FormatRecorder::new();
+            ellipsis.format(&mut rewrap(&mut ellipsis_recorder))?;
+            &ellipsis_recorder
+        } else {
+            &default_ellipsis
+        };
+        write_truncated(formatter.as_mut(), recorded, recorded_ellipsis, width)?;
         Ok(())
     });
     Box::new(template)
