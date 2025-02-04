@@ -16,6 +16,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### New features
 
+* `jj undo` now shows a hint when undoing an undo operation that the user may
+   be looking for `jj op restore` instead.
+
 * Template functions `truncate_start()` and `truncate_end()` gained an optional
   `ellipsis` parameter; passing this prepends or appends the ellipsis to the
   content if it is truncated to fit the maximum width.

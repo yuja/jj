@@ -70,6 +70,7 @@ pub fn cmd_op_undo(
         &args.what,
     );
     tx.repo_mut().set_view(new_view);
+    let was_undo_op = *tx.repo().view() == parent_op.view()?;
     if let Some(mut formatter) = ui.status_formatter() {
         write!(formatter, "Undid operation: ")?;
         let template = tx.base_workspace_helper().operation_summary_template();
@@ -77,6 +78,19 @@ pub fn cmd_op_undo(
         writeln!(formatter)?;
     }
     tx.finish(ui, format!("undo operation {}", bad_op.id().hex()))?;
+
+    if args.operation == "@" && was_undo_op {
+        writeln!(
+            ui.hint_default(),
+            "This action reverted an 'undo' operation. The repository is now in the same state as \
+             it was before the original 'undo'."
+        )?;
+        writeln!(
+            ui.hint_default(),
+            "If your goal is to undo multiple operations, consider using `jj op log` to see past \
+             states, and `jj op restore` to restore one of these states."
+        )?;
+    }
 
     Ok(())
 }

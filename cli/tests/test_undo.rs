@@ -385,6 +385,44 @@ fn test_bookmark_track_untrack_undo() {
     "###);
 }
 
+#[test]
+fn test_shows_a_warning_when_undoing_an_undo_operation_as_bare_jj_undo() {
+    let test_env = TestEnvironment::default();
+    test_env.jj_cmd_ok(test_env.env_root(), &["git", "init", "repo"]);
+    let repo_path = test_env.env_root().join("repo");
+
+    test_env.jj_cmd_ok(&repo_path, &["new"]);
+    test_env.jj_cmd_ok(&repo_path, &["undo"]);
+    let (stdout, stderr) = test_env.jj_cmd_ok(&repo_path, &["undo"]);
+    insta::assert_snapshot!(stdout, @"");
+    insta::assert_snapshot!(stderr, @r"
+    Undid operation: 2d5b73a97567 (2001-02-03 08:05:09) undo operation 289cb69a8458456474a77cc432e8009b99f039cdcaf19ba4526753e97d70fee3fd0f410ff2b7c1d10cf0c2501702e7a85d58f9d813cdca567c377431ec4d2b97
+    Working copy now at: rlvkpnrz 65b6b74e (empty) (no description set)
+    Parent commit      : qpvuntsm 230dd059 (empty) (no description set)
+    Hint: This action reverted an 'undo' operation. The repository is now in the same state as it was before the original 'undo'.
+    Hint: If your goal is to undo multiple operations, consider using `jj op log` to see past states, and `jj op restore` to restore one of these states.
+    ");
+}
+
+#[test]
+fn test_shows_no_warning_when_undoing_a_specific_undo_change() {
+    let test_env = TestEnvironment::default();
+    test_env.jj_cmd_ok(test_env.env_root(), &["git", "init", "repo"]);
+    let repo_path = test_env.env_root().join("repo");
+
+    test_env.jj_cmd_ok(&repo_path, &["new"]);
+    test_env.jj_cmd_ok(&repo_path, &["undo"]);
+    let stdout = test_env.jj_cmd_success(&repo_path, &["op", "log"]);
+    let op_id_hex = stdout[3..15].to_string();
+    let (stdout, stderr) = test_env.jj_cmd_ok(&repo_path, &["undo", &op_id_hex]);
+    insta::assert_snapshot!(stdout, @"");
+    insta::assert_snapshot!(stderr, @r"
+    Undid operation: 2d5b73a97567 (2001-02-03 08:05:09) undo operation 289cb69a8458456474a77cc432e8009b99f039cdcaf19ba4526753e97d70fee3fd0f410ff2b7c1d10cf0c2501702e7a85d58f9d813cdca567c377431ec4d2b97
+    Working copy now at: rlvkpnrz 65b6b74e (empty) (no description set)
+    Parent commit      : qpvuntsm 230dd059 (empty) (no description set)
+    ");
+}
+
 fn get_bookmark_output(test_env: &TestEnvironment, repo_path: &Path) -> String {
     // --quiet to suppress deleted bookmarks hint
     test_env.jj_cmd_success(repo_path, &["bookmark", "list", "--all-remotes", "--quiet"])
