@@ -12,6 +12,25 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Breaking changes
 
+### Deprecations
+
+### New features
+
+### Fixed bugs
+
+## [0.26.0] - 2025-02-05
+
+### Release highlights
+
+* Improved Git push/fetch compatibility by spawning an external `git` process.
+  This can be enabled by the `git.subprocess=true` config knob, and will be the
+  default in a future release.
+
+* `jj log` can now show cryptographic commit signatures. The output can be
+  controlled by the `ui.show-cryptographic-signatures=true` config knob.
+
+### Breaking changes
+
 * `jj abandon` now deletes bookmarks pointing to the revisions to be abandoned.
   Use `--retain-bookmarks` to move bookmarks backwards. If deleted bookmarks
   were tracking remote bookmarks, the associated bookmarks (or branches) will be
@@ -88,21 +107,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 * `jj restore` now supports `-i`/`--interactive` selection.
 
-* Add templater support for rendering commit signatures.
-
 * `jj file list` now supports templating.
 
-* `jj status` now shows untracked files when they reside directly under a tracked directory.
-
-* New `merge-tools.<TOOL>.diff-expected-exit-codes` config option to suppress
-  warnings from tools exiting with non-zero exit codes.
-
-* Add a new template alias `builtin_op_log_oneline` along with `format_operation_oneline` and `format_snapshot_operation_oneline`
+* There is a new `builtin_op_log_oneline` template alias you can pass to `jj op
+  log -T` for a more compact output. You can use `format_operation_oneline` and
+  `format_snapshot_operation_oneline` to customize parts of it.
 
 * New template function `config(name)` to access to configuration variable from
   template.
 
-* New template function `pad_centered()` to center content within a minimum width.
+* New template function `pad_centered()` to center content within a minimum
+  width.
 
 * Templater now supports `list.filter(|x| ..)` method.
 
@@ -112,31 +127,34 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 * The `diff.stat()` template method now provides methods to get summary values.
 
-* New `git.sign-on-push` config option to automatically sign commits which are being
-  pushed to a Git remote.
+* `jj log` can now show cryptographic commit signatures. The output can be
+  controlled by the `ui.show-cryptographic-signatures=true` config knob. The
+  signature template can be customized using
+  `format_detailed_cryptographic_signature(signature)` and
+  `format_short_cryptographic_signature(signature)`.
+
+* New `git.sign-on-push` config option to automatically sign commits which are
+  being pushed to a Git remote.
 
 * New `git.push-new-bookmarks` config option to push new bookmarks without
   `--allow-new`.
+
+* `jj status` now shows untracked files when they reside directly under a
+  tracked directory. There's still an issue that files under untracked
+  directories aren't listed. [#5389](https://github.com/jj-vcs/jj/issues/5389)
+
+* New `merge-tools.<TOOL>.diff-expected-exit-codes` config option to suppress
+  warnings from tools exiting with non-zero exit codes.
 
 * New `fix.tools.TOOL.enabled` config option to enable/disable tools. This is
   useful for defining disabled tools in user configuration that can be enabled
   in individual repositories with one config setting.
 
-* The Jujutsu documentation site now publishes a schema for the official
-  configuration file, which can be integrated into your editor for autocomplete,
-  inline errors, and more. Please [see the documentation](/docs/config.md#json-schema-support)
-  for more on this.
+* Added `--into` flag to `jj restore`, similarly to `jj squash` and `jj
+  absorb`. It is equivalent to `--to`, but `--into` is the recommended name.
 
-* Add a config option `ui.show-cryptographic-signatures`. When set to `"true"`, the
-  builtin templates will show signataure information if available. The signature display
-  can be customized using `format_detailed_cryptographic_signature(signature)` and
-  `format_short_cryptographic_signature(signature)`.
-
-* Added `--into` flag to `jj restore`, similarly to `jj squash` and `jj absorb`. It is
-  equivalent to `--to`, but `--into` is the recommended name.
-
-* Italic text is now supported. You can set e.g. `color.error = { fg = "red", italic = true }`
-  in your config.
+* Italic text is now supported. You can set e.g. `color.error = { fg = "red",
+  italic = true }` in your config.
 
 * New `author_name`/`author_email`/`committer_name`/`committer_email(pattern)`
   revset functions to match either name or email field explicitly.
@@ -144,8 +162,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 * New `subject(pattern)` revset function that matches first line of commit
   descriptions.
 
-* Conditional configuration now supports `--when.commands` to change configuration
-  based on subcommand.
+* Conditional configuration now supports `--when.commands` to change
+  configuration based on subcommand.
+
+* The Jujutsu documentation site now publishes a schema for the official
+  configuration file, which can be integrated into your editor for autocomplete,
+  inline errors, and more.
+  Please [see the documentation](/docs/config.md#json-schema-support) for more
+  on this.
 
 ### Fixed bugs
 
@@ -170,6 +194,42 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 * Bookmark and remote names written by `jj git clone` to
   `revset-aliases.'trunk()'` are now escaped if necessary.
   [#5359](https://github.com/jj-vcs/jj/issues/5359)
+
+### Contributors
+
+Thanks to the people who made this release happen!
+
+* Angel Ezquerra (@AngelEzquerra)
+* Antoine Martin (@alarsyo)
+* Anton Bulakh (@necauqua)
+* Austin Seipp (@thoughtpolice)
+* Baltasar Dinis (@bsdinis)
+* Benjamin Tan (@bnjmnt4n)
+* blinry (@blinry)
+* Bryce Berger (@bryceberger)
+* Charlie-83 (@Charlie-83)
+* Christian Stoitner (@cstoitner)
+* Evan Martin (@evmar)
+* George Christou (@gechr)
+* Ilya Grigoriev (@ilyagr)
+* Jakob Hellermann (@jakobhellermann)
+* JDSeiler (@JDSeiler)
+* Jonathan Frere (@MrJohz)
+* Jonathan Gilchrist (@jgilchrist)
+* Josh Steadmon (@steadmon)
+* Martin von Zweigbergk (@martinvonz)
+* Matt Kulukundis (@fowles)
+* Ollivier Robert (@keltia)
+* Philip Metzger (@PhilipMetzger)
+* Philipp Albrecht (@pylbrecht)
+* Robert Jackson (@rwjblue)
+* Samuel Tardieu (@samueltardieu)
+* Scott Taylor (@scott2000)
+* Stephen Jennings (@jennings)
+* Valentin Gatien-Baron (@v-gb)
+* Vincent Ging Ho Yim (@cenviity)
+* Waleed Khan (@arxanas)
+* Yuya Nishihara (@yuja)
 
 ## [0.25.0] - 2025-01-01
 
