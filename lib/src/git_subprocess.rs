@@ -88,6 +88,9 @@ impl<'a> GitSubprocessContext<'a> {
             .arg("--bare")
             .arg("--git-dir")
             .arg(&self.git_dir)
+            // Disable translation and other locale-dependent behavior so we can
+            // parse the output. LC_ALL precedes LC_* and LANG.
+            .env("LC_ALL", "C")
             .stdin(Stdio::null())
             .stderr(Stdio::piped());
 

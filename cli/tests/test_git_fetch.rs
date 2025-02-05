@@ -15,6 +15,7 @@ use std::path::Path;
 
 use test_case::test_case;
 
+use crate::common::get_stderr_string;
 use crate::common::TestEnvironment;
 
 fn add_commit_to_branch(git_repo: &git2::Repository, branch: &str) -> git2::Oid {
@@ -1145,6 +1146,34 @@ fn test_git_fetch_bookmarks_some_missing(subprocess: bool) {
       @rem3: lvsrtwwm 4ffdff2b message
     ");
     }
+}
+
+#[test]
+fn test_git_fetch_bookmarks_missing_with_subprocess_localized_message() {
+    let test_env = TestEnvironment::default();
+    test_env.add_config("git.subprocess = true");
+    test_env.jj_cmd_ok(test_env.env_root(), &["git", "init", "repo"]);
+    let repo_path = test_env.env_root().join("repo");
+    add_git_remote(&test_env, &repo_path, "origin");
+
+    // "fatal: couldn't find remote ref %s" shouldn't be localized.
+    let assert = test_env
+        .jj_cmd(&repo_path, &["git", "fetch", "--branch=unknown"])
+        // Initialize locale as "en_US" which is the most common.
+        .env("LC_ALL", "en_US.UTF-8")
+        // Set some other locale variables for testing.
+        .env("LC_MESSAGES", "en_US.UTF-8")
+        .env("LANG", "en_US.UTF-8")
+        // GNU gettext prioritizes LANGUAGE if translation is enabled. It works
+        // no matter if system locale exists or not.
+        .env("LANGUAGE", "zh_TW")
+        .assert()
+        .success();
+    let stderr = test_env.normalize_output(&get_stderr_string(&assert));
+    insta::assert_snapshot!(stderr, @r"
+    Warning: No branch matching `unknown` found on any specified/configured remote
+    Nothing changed.
+    ");
 }
 
 // See `test_undo_restore_commands.rs` for fetch-undo-push and fetch-undo-fetch
