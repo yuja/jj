@@ -60,7 +60,7 @@ jobs:
     # There is some issue with windows PATH max length which is what all the PATH wrangling
     # below is for. Please see the below link for where this fix was derived from:
     # https://github.com/orgs/community/discussions/24933
-    - name: Setup GnuPG [windows]
+    - name: Set up GnuPG [windows]
       if: ${{ matrix.os == 'windows-latest' }}
       run: |
         $env:PATH = "C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\ProgramData\chocolatey\bin"
@@ -70,7 +70,7 @@ jobs:
 
     # The default version of openssh on windows server is quite old (8.1) and doesn't have
     # all the necessary signing/verification commands available (such as -Y find-principals)
-    - name: Setup ssh-agent [windows]
+    - name: Set up ssh-agent [windows]
       if: ${{ matrix.os == 'windows-latest' }}
       run: |
         Remove-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
