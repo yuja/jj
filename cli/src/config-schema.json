@@ -639,9 +639,8 @@
                                     "default": "ssh-keygen"
                                 },
                                 "allowed-signers": {
-                                    "type": "boolean",
-                                    "description": "Path to an allowed signers file used for signature verification",
-                                    "default": true
+                                    "type": "string",
+                                    "description": "Path to an allowed signers file used for signature verification"
                                 }
                             }
                         }
