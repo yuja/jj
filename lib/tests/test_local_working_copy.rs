@@ -29,10 +29,8 @@ use jj_lib::backend::TreeValue;
 use jj_lib::file_util::check_symlink_support;
 use jj_lib::file_util::try_symlink;
 use jj_lib::fsmonitor::FsmonitorSettings;
+use jj_lib::gitignore::GitIgnoreFile;
 use jj_lib::local_working_copy::LocalWorkingCopy;
-use jj_lib::matchers::EverythingMatcher;
-use jj_lib::matchers::Matcher;
-use jj_lib::matchers::NothingMatcher;
 use jj_lib::merge::Merge;
 use jj_lib::merge::MergedTreeValue;
 use jj_lib::merged_tree::MergedTree;
@@ -1282,23 +1280,26 @@ fn test_dotgit_ignored() {
     assert_eq!(new_tree.id(), empty_tree_id);
 }
 
-#[test_case(&EverythingMatcher; "snapshot.auto-track = all()")]
-#[test_case(&NothingMatcher; "snapshot.auto-track = none()")]
-fn test_git_submodule(start_tracking_matcher: &dyn Matcher) {
+#[test_case(""; "ignore nothing")]
+#[test_case("/*\n"; "ignore all")]
+fn test_git_submodule(gitignore_content: &str) {
     // Tests that git submodules are ignored.
 
     let mut test_workspace = TestWorkspace::init_with_backend(TestRepoBackend::Git);
     let repo = test_workspace.repo.clone();
     let store = repo.store().clone();
     let workspace_root = test_workspace.workspace.workspace_root().to_owned();
+    let base_ignores = GitIgnoreFile::empty()
+        .chain("", Path::new(""), gitignore_content.as_bytes())
+        .unwrap();
     let snapshot_options = SnapshotOptions {
-        start_tracking_matcher,
+        base_ignores,
         ..SnapshotOptions::empty_for_test()
     };
     let mut tx = repo.start_transaction();
 
     // Add files in sub directory. Sub directories are traversed differently
-    // depending on start_tracking_matcher and .gitignore. #5246
+    // depending on .gitignore. #5246
     let added_path = RepoPath::from_internal_string("sub/added");
     let submodule_path = RepoPath::from_internal_string("sub/module");
     let added_submodule_path = RepoPath::from_internal_string("sub/module/added");

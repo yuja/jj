@@ -1235,14 +1235,12 @@ impl FileSnapshotter<'_> {
 
         if file_type.is_dir() {
             let file_states = file_states.prefixed_at(dir, name);
-            if git_ignore.matches(&path.to_internal_dir_string())
-                || self.start_tracking_matcher.visit(&path).is_nothing()
-            {
-                // TODO: Report this directory to the caller if there are unignored paths we
-                // should not start tracking.
-
-                // If the whole directory is ignored, visit only paths we're already
-                // tracking.
+            if git_ignore.matches(&path.to_internal_dir_string()) {
+                // If the whole directory is ignored by .gitignore, visit only
+                // paths we're already tracking. This is because .gitignore in
+                // ignored directory must be ignored. It's also more efficient.
+                // start_tracking_matcher is NOT tested here because we need to
+                // scan directory entries to report untracked paths.
                 self.spawn_ok(scope, move |_| self.visit_tracked_files(file_states));
             } else if !self.matcher.visit(&path).is_nothing() {
                 let directory_to_visit = DirectoryToVisit {

@@ -377,60 +377,89 @@ fn test_status_untracked_files() {
     test_env.jj_cmd_ok(test_env.env_root(), &["git", "init", "repo"]);
     let repo_path = test_env.env_root().join("repo");
 
-    std::fs::write(repo_path.join("initially-untracked-file"), "...").unwrap();
     std::fs::write(repo_path.join("always-untracked-file"), "...").unwrap();
+    std::fs::write(repo_path.join("initially-untracked-file"), "...").unwrap();
+    std::fs::create_dir(repo_path.join("sub")).unwrap();
+    std::fs::write(repo_path.join("sub").join("always-untracked"), "...").unwrap();
+    std::fs::write(repo_path.join("sub").join("initially-untracked"), "...").unwrap();
 
     let stdout = test_env.jj_cmd_success(&repo_path, &["status"]);
-    insta::assert_snapshot!(stdout, @r"
+    insta::assert_snapshot!(stdout.replace('\\', "/"), @r"
     Untracked paths:
     ? always-untracked-file
     ? initially-untracked-file
+    ? sub/always-untracked
+    ? sub/initially-untracked
     Working copy : qpvuntsm 230dd059 (empty) (no description set)
     Parent commit: zzzzzzzz 00000000 (empty) (no description set)
     ");
 
-    test_env.jj_cmd_success(&repo_path, &["file", "track", "initially-untracked-file"]);
+    test_env.jj_cmd_success(
+        &repo_path,
+        &[
+            "file",
+            "track",
+            "initially-untracked-file",
+            "sub/initially-untracked",
+        ],
+    );
 
     let stdout = test_env.jj_cmd_success(&repo_path, &["status"]);
-    insta::assert_snapshot!(stdout, @r"
+    insta::assert_snapshot!(stdout.replace('\\', "/"), @r"
     Working copy changes:
     A initially-untracked-file
+    A sub/initially-untracked
     Untracked paths:
     ? always-untracked-file
-    Working copy : qpvuntsm 203bfea9 (no description set)
+    ? sub/always-untracked
+    Working copy : qpvuntsm 99798fcd (no description set)
     Parent commit: zzzzzzzz 00000000 (empty) (no description set)
     ");
 
     test_env.jj_cmd_ok(&repo_path, &["new"]);
 
     let stdout = test_env.jj_cmd_success(&repo_path, &["status"]);
-    insta::assert_snapshot!(stdout, @r"
+    insta::assert_snapshot!(stdout.replace('\\', "/"), @r"
     Untracked paths:
     ? always-untracked-file
-    Working copy : mzvwutvl 69b48d55 (empty) (no description set)
-    Parent commit: qpvuntsm 203bfea9 (no description set)
+    ? sub/always-untracked
+    Working copy : mzvwutvl 30e53c74 (empty) (no description set)
+    Parent commit: qpvuntsm 99798fcd (no description set)
     ");
 
-    test_env.jj_cmd_success(&repo_path, &["file", "untrack", "initially-untracked-file"]);
+    test_env.jj_cmd_success(
+        &repo_path,
+        &[
+            "file",
+            "untrack",
+            "initially-untracked-file",
+            "sub/initially-untracked",
+        ],
+    );
     let stdout = test_env.jj_cmd_success(&repo_path, &["status"]);
-    insta::assert_snapshot!(stdout, @r"
+    insta::assert_snapshot!(stdout.replace('\\', "/"), @r"
     Working copy changes:
     D initially-untracked-file
+    D sub/initially-untracked
     Untracked paths:
     ? always-untracked-file
     ? initially-untracked-file
-    Working copy : mzvwutvl 16169825 (no description set)
-    Parent commit: qpvuntsm 203bfea9 (no description set)
+    ? sub/always-untracked
+    ? sub/initially-untracked
+    Working copy : mzvwutvl bb362aaf (no description set)
+    Parent commit: qpvuntsm 99798fcd (no description set)
     ");
 
     test_env.jj_cmd_ok(&repo_path, &["new"]);
 
     let stdout = test_env.jj_cmd_success(&repo_path, &["status"]);
-    insta::assert_snapshot!(stdout, @r"
+    insta::assert_snapshot!(stdout.replace('\\', "/"), @r"
     Untracked paths:
     ? always-untracked-file
     ? initially-untracked-file
-    Working copy : yostqsxw 9b87b665 (empty) (no description set)
-    Parent commit: mzvwutvl 16169825 (no description set)
+    ? sub/always-untracked
+    ? sub/initially-untracked
+    Working copy : yostqsxw 8e8c02fe (empty) (no description set)
+    Parent commit: mzvwutvl bb362aaf (no description set)
     ");
 }
