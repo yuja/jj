@@ -73,6 +73,7 @@ use crate::ui::Ui;
 ///
 /// [safety checks]:
 ///     https://jj-vcs.github.io/jj/latest/bookmarks/#pushing-bookmarks-safety-checks
+///
 /// [bookmark conflicts]:
 ///     https://jj-vcs.github.io/jj/latest/bookmarks/#conflicts
 
