@@ -31,6 +31,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 * `jj status` now shows untracked files under untracked directories.
   [#5389](https://github.com/jj-vcs/jj/issues/5389)
 
+* The `signing.backends.ssh.allowed-signers` configuration option will now
+  expand `~/` to `$HOME/`.
+  [#5626](https://github.com/jj-vcs/jj/pull/5626)
+
 ## [0.26.0] - 2025-02-05
 
 ### Release highlights

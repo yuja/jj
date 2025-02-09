@@ -123,7 +123,8 @@ impl SshBackend {
         let program = settings.get_string("signing.backends.ssh.program")?;
         let allowed_signers = settings
             .get_string("signing.backends.ssh.allowed-signers")
-            .optional()?;
+            .optional()?
+            .map(|v| crate::file_util::expand_home_path(v.as_str()));
         Ok(Self::new(program.into(), allowed_signers.map(|v| v.into())))
     }
 
