@@ -435,7 +435,7 @@ fn parse_ref_pushes(stdout: &[u8]) -> Result<(Vec<String>, Vec<String>), GitSubp
             .map_err(GitSubprocessError::External)?;
 
         let reference = full_refspec
-            .split_once(":")
+            .split_once(':')
             .map(|(_refname, reference)| reference.to_string())
             .ok_or_else(|| {
                 GitSubprocessError::External(format!(
