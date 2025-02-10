@@ -10,6 +10,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Release highlights
 
+* `git.subprocess` is now enabled by default, improving compatibility with Git
+  fetches and pushes by spawning an external `git` process. Users can opt out
+  of this by setting `git.subprocess = false`, but this will likely be removed
+  in a future release. Please report any issues you run into.
+
 ### Breaking changes
 
 * The `ui.allow-filesets` configuration option has been removed.

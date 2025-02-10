@@ -412,7 +412,7 @@
                 "subprocess": {
                     "type": "boolean",
                     "description": "Whether jj spawns a git subprocess for network operations (push/fetch/clone)",
-                    "default": false
+                    "default": true
                 },
                 "executable-path": {
                     "type": "string",

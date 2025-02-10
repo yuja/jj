@@ -12,7 +12,7 @@ register_snapshot_trigger = false
 [git]
 abandon-unreachable-commits = true
 auto-local-bookmark = false
-subprocess = false
+subprocess = true
 executable-path = "git"
 
 [operation]

@@ -1310,25 +1310,28 @@ would require pushing the private commit as well.
 
 ### Git subprocessing behaviour
 
-By default, Git remote interactions are handled by [`libgit2`](https://github.com/libgit2/libgit2).
-This sometimes causes [SSH problems](https://github.com/jj-vcs/jj/issues/4979) that
-cannot be solved by `jj` directly.
-
-To sidestep this, there is an option to spawn a `git` subprocess to handle those
-remote interactions:
-
-```toml
-[git]
-subprocess = true
-```
-
-Additionally, if `git` is not on your OS path, or you want to specify a
-particular binary, you can:
+By default, Git remote interactions are handled by spawning a `git` subprocess.
+If `git` is not on your OS path, or you want to specify a particular binary,
+you can:
 
 ```toml
 [git]
 executable-path = "/path/to/git"
 ```
+
+Previously, remote interactions were handled by
+[`libgit2`](https://github.com/libgit2/libgit2) by default, which sometimes
+caused [SSH problems](https://github.com/jj-vcs/jj/issues/4979) that could not
+be solved by `jj` directly. If you have any issues with the `git`
+subprocessing, you can switch back to `libgit2` with:
+
+```toml
+[git]
+subprocess = false
+```
+
+Note that `libgit2` support will likely be removed in the future, so you are
+encouraged to report any issues you experience with the default configuration.
 
 ## Filesystem monitor
 

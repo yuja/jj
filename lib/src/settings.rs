@@ -79,7 +79,7 @@ impl Default for GitSettings {
         GitSettings {
             auto_local_bookmark: false,
             abandon_unreachable_commits: true,
-            subprocess: false,
+            subprocess: true,
             executable_path: PathBuf::from("git"),
         }
     }
