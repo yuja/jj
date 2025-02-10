@@ -37,7 +37,7 @@ Running `jj st` (short for `jj status`) now yields something like this:
 
 ```shell
 $ jj st
-The working copy is clean
+The working copy has no changes.
 Working copy : kntqzsqt d7439b06 (empty) (no description set)
 Parent commit: orrkosyo 7fd1a60b master | (empty) Merge pull request #6 from Spaceghost/patch-1
 ```
@@ -144,7 +144,7 @@ $ jj new
 Working copy now at: mpqrykyp aef4df99 (empty) (no description set)
 Parent commit      : kntqzsqt 5d39e19d Say goodbye
 $ jj st
-The working copy is clean
+The working copy has no changes.
 Working copy : mpqrykyp aef4df99 (empty) (no description set)
 Parent commit: kntqzsqt 5d39e19d Say goodbye
 ```
@@ -328,7 +328,7 @@ There are unresolved conflicts at these paths:
 file1    2-sided conflict
 
 $ jj st
-The working copy is clean
+The working copy has no changes.
 There are unresolved conflicts at these paths:
 file1    2-sided conflict
 Working copy : zxoosnnp c7068d1c (conflict) (empty) (no description set)

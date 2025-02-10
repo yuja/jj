@@ -72,7 +72,7 @@ pub(crate) fn cmd_status(
         let wc_has_changes = tree.id() != parent_tree.id();
         let wc_has_untracked = !snapshot_stats.untracked_paths.is_empty();
         if !wc_has_changes && !wc_has_untracked {
-            writeln!(formatter, "The working copy is clean")?;
+            writeln!(formatter, "The working copy has no changes.")?;
         } else {
             if wc_has_changes {
                 writeln!(formatter, "Working copy changes:")?;

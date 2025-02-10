@@ -672,7 +672,7 @@ fn test_git_clone_ignore_working_copy(subprocess: bool) {
     let (stdout, stderr) = test_env.jj_cmd_ok(&clone_path, &["status", "--ignore-working-copy"]);
     insta::allow_duplicates! {
     insta::assert_snapshot!(stdout, @r###"
-    The working copy is clean
+    The working copy has no changes.
     Working copy : sqpuoqvx cad212e1 (empty) (no description set)
     Parent commit: mzyxwzks 9f01a0e0 main | message
     "###);
@@ -1047,7 +1047,7 @@ fn test_git_clone_malformed(subprocess: bool) {
     let stdout = test_env.jj_cmd_success(&clone_path, &["status"]);
     insta::allow_duplicates! {
     insta::assert_snapshot!(stdout, @r#"
-    The working copy is clean
+    The working copy has no changes.
     Working copy : zsuskuln f652c321 (empty) (no description set)
     Parent commit: zzzzzzzz 00000000 (empty) (no description set)
     "#);

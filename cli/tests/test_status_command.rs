@@ -86,7 +86,7 @@ fn test_status_merge() {
     // to the auto-merged parents)
     let stdout = test_env.jj_cmd_success(&repo_path, &["status"]);
     insta::assert_snapshot!(stdout, @r###"
-    The working copy is clean
+    The working copy has no changes.
     Working copy : mzvwutvl a538c72d (empty) (no description set)
     Parent commit: rlvkpnrz d3dd19f1 left | (empty) left
     Parent commit: zsuskuln 705a356d right
@@ -198,7 +198,7 @@ fn test_status_display_relevant_working_commit_conflict_hints() {
     let stdout = test_env.jj_cmd_success(&repo_path, &["status"]);
 
     insta::assert_snapshot!(stdout, @r###"
-    The working copy is clean
+    The working copy has no changes.
     There are unresolved conflicts at these paths:
     conflicted.txt    2-sided conflict
     Working copy : yqosqzyt dcb25635 (conflict) (empty) boom-cont-2
@@ -353,7 +353,7 @@ fn test_status_simplify_conflict_sides() {
 
     insta::assert_snapshot!(test_env.jj_cmd_success(&repo_path, &["status"]),
     @r###"
-    The working copy is clean
+    The working copy has no changes.
     There are unresolved conflicts at these paths:
     fileA    2-sided conflict
     fileB    2-sided conflict

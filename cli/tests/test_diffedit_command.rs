@@ -410,7 +410,7 @@ fn test_diffedit_external_tool_conflict_marker_style() {
     // File should be conflicted with no changes
     let stdout = test_env.jj_cmd_success(&repo_path, &["st"]);
     insta::assert_snapshot!(stdout, @r###"
-    The working copy is clean
+    The working copy has no changes.
     There are unresolved conflicts at these paths:
     file    2-sided conflict
     Working copy : mzvwutvl fb39e804 (conflict) (empty) (no description set)

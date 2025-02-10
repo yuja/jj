@@ -658,7 +658,7 @@ fn test_workspaces_updated_by_other_automatic() {
     // The first working copy gets automatically updated.
     let (stdout, stderr) = test_env.jj_cmd_ok(&secondary_path, &["st"]);
     insta::assert_snapshot!(stdout, @r###"
-    The working copy is clean
+    The working copy has no changes.
     Working copy : pmmvwywv e82cd4ee (empty) (no description set)
     Parent commit: qpvuntsm d4124476 (no description set)
     "###);
