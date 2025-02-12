@@ -1646,7 +1646,7 @@ enum GitFetchImpl<'a> {
         git_repo: git2::Repository,
     },
     Subprocess {
-        git_repo: gix::Repository,
+        git_repo: Box<gix::Repository>,
         git_ctx: GitSubprocessContext<'a>,
     },
 }
@@ -1655,7 +1655,7 @@ impl<'a> GitFetchImpl<'a> {
     fn new(store: &Store, git_settings: &'a GitSettings) -> Result<Self, GitFetchPrepareError> {
         let git_backend = get_git_backend(store)?;
         if git_settings.subprocess {
-            let git_repo = git_backend.git_repo();
+            let git_repo = Box::new(git_backend.git_repo());
             let git_ctx =
                 GitSubprocessContext::from_git_backend(git_backend, &git_settings.executable_path);
             Ok(GitFetchImpl::Subprocess { git_repo, git_ctx })
