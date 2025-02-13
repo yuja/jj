@@ -650,7 +650,7 @@
                 }
             }
         },
-    "fix": {
+        "fix": {
             "type": "object",
             "description": "Settings for jj fix",
             "properties": {
