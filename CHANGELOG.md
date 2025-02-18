@@ -28,6 +28,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 * `jj bookmark forget` now untracks any corresponding remote bookmarks instead
   of forgetting them, since forgetting a remote bookmark can be unintuitive.
   The old behavior is still available with the new `--include-remotes` flag.
+ 
+* `jj split` no longer moves bookmarks to the second revision created by the
+  split. Instead, local bookmarks associated with the target revision will move
+  to the first revision created by the split (which inherits the target
+  revision's change id). You can opt out of this change by setting
+  `split.legacy-bookmark-behavior = true`, but this will likely be removed in a
+  future release. [#3419](https://github.com/jj-vcs/jj/issues/3419)
 
 ### Deprecations
 
@@ -35,13 +42,6 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `bookmark create`, `bookmark move` and `bookmark set`. Those commands will display
   a warning if the user does not specify target revision  explicitly. In the near
   future those commands will fail if target revision is not specified.
-
-* `jj split` no longer moves bookmarks to the second revision created by the
-  split. Instead, local bookmarks associated with the target revision will move
-  to the first revision created by the split (which inherits the target
-  revision's change id). You can opt out of this change by setting
-  `split.legacy-bookmark-behavior = true`, but this will likely be removed in a
-  future release. [#3419](https://github.com/jj-vcs/jj/issues/3419)
 
 * The `signing.sign-all` config option has been deprecated in favor of
   `signing.behavior`. The new option accepts `drop` (never sign), `keep` (preserve
