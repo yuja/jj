@@ -149,7 +149,7 @@ To get started, see the tutorial [`jj help -k tutorial`].
 * `rebase` — Move revisions to different parent(s)
 * `resolve` — Resolve conflicted files with an external merge tool
 * `restore` — Restore paths from another revision
-* `root` — Show the current workspace root directory
+* `root` — Show the current workspace root directory (shortcut for `jj workspace root`)
 * `show` — Show commit description and changes in a revision
 * `sign` — Cryptographically sign a revision
 * `simplify-parents` — Simplify parent edges for the specified revision(s)
@@ -2165,7 +2165,7 @@ See `jj diffedit` if you'd like to restore portions of files rather than entire 
 
 ## `jj root`
 
-Show the current workspace root directory
+Show the current workspace root directory (shortcut for `jj workspace root`)
 
 **Usage:** `jj root`
 
