@@ -15,7 +15,7 @@
 use std::fmt::Write;
 use std::path::Path;
 
-use git2::Oid;
+use testutils::git;
 
 use crate::common::CommandOutput;
 use crate::common::TestEnvironment;
@@ -24,36 +24,26 @@ use crate::common::TestEnvironment;
 fn test_git_colocated() {
     let test_env = TestEnvironment::default();
     let workspace_root = test_env.env_root().join("repo");
-    let git_repo = git2::Repository::init(&workspace_root).unwrap();
+    let git_repo = git::init(&workspace_root);
 
     // Create an initial commit in Git
-    std::fs::write(workspace_root.join("file"), "contents").unwrap();
-    git_repo
-        .index()
-        .unwrap()
-        .add_path(Path::new("file"))
-        .unwrap();
-    let tree1_oid = git_repo.index().unwrap().write_tree().unwrap();
-    let tree1 = git_repo.find_tree(tree1_oid).unwrap();
-    let signature = git2::Signature::new(
-        "Someone",
-        "someone@example.com",
-        &git2::Time::new(1234567890, 60),
+    let tree_id = git::add_commit(
+        &git_repo,
+        "refs/heads/master",
+        "file",
+        b"contents",
+        "initial",
+        &[],
     )
-    .unwrap();
-    git_repo
-        .commit(
-            Some("refs/heads/master"),
-            &signature,
-            &signature,
-            "initial",
-            &tree1,
-            &[],
-        )
-        .unwrap();
+    .tree_id;
+    git::checkout_tree_index(&git_repo, tree_id);
+    assert_eq!(
+        std::fs::read(workspace_root.join("file")).unwrap(),
+        b"contents"
+    );
     insta::assert_snapshot!(
-        git_repo.head().unwrap().peel_to_commit().unwrap().id().to_string(),
-        @"e61b6729ff4292870702f2f72b2a60165679ef37"
+        git_repo.head_id().unwrap().to_string(),
+        @"97358f54806c7cd005ed5ade68a779595efbae7e"
     );
 
     // Import the repo
@@ -61,42 +51,43 @@ fn test_git_colocated() {
         .run_jj_in(&workspace_root, ["git", "init", "--git-repo", "."])
         .success();
     insta::assert_snapshot!(get_log_output(&test_env, &workspace_root), @r"
-    @  3e9369cd54227eb88455e1834dbc08aad6a16ac4
-    ○  e61b6729ff4292870702f2f72b2a60165679ef37 master git_head() initial
+    @  c3a12656d5027825bc69f40e11dc0bb381d7c277
+    ○  97358f54806c7cd005ed5ade68a779595efbae7e master git_head() initial
     ◆  0000000000000000000000000000000000000000
     [EOF]
     ");
     insta::assert_snapshot!(
-        git_repo.head().unwrap().peel_to_commit().unwrap().id().to_string(),
-        @"e61b6729ff4292870702f2f72b2a60165679ef37"
+        git_repo.head_id().unwrap().to_string(),
+        @"97358f54806c7cd005ed5ade68a779595efbae7e"
     );
 
     // Modify the working copy. The working-copy commit should changed, but the Git
     // HEAD commit should not
     std::fs::write(workspace_root.join("file"), "modified").unwrap();
     insta::assert_snapshot!(get_log_output(&test_env, &workspace_root), @r"
-    @  4f546c80f30abc0803fb83e5032a4d49fede4d68
-    ○  e61b6729ff4292870702f2f72b2a60165679ef37 master git_head() initial
+    @  59642000f061cf23eb37ab6eecce428afe7824da
+    ○  97358f54806c7cd005ed5ade68a779595efbae7e master git_head() initial
     ◆  0000000000000000000000000000000000000000
     [EOF]
     ");
     insta::assert_snapshot!(
-        git_repo.head().unwrap().peel_to_commit().unwrap().id().to_string(),
-        @"e61b6729ff4292870702f2f72b2a60165679ef37"
+        git_repo.head_id().unwrap().to_string(),
+        @"97358f54806c7cd005ed5ade68a779595efbae7e"
     );
 
     // Create a new change from jj and check that it's reflected in Git
     test_env.run_jj_in(&workspace_root, ["new"]).success();
     insta::assert_snapshot!(get_log_output(&test_env, &workspace_root), @r"
-    @  0e2301a42b288b9568344e32cfdd8c76d1e56a83
-    ○  4f546c80f30abc0803fb83e5032a4d49fede4d68 git_head()
-    ○  e61b6729ff4292870702f2f72b2a60165679ef37 master initial
+    @  fd4e130e43068d76ec6eb2c6df01653ea12eccb4
+    ○  59642000f061cf23eb37ab6eecce428afe7824da git_head()
+    ○  97358f54806c7cd005ed5ade68a779595efbae7e master initial
     ◆  0000000000000000000000000000000000000000
     [EOF]
     ");
+    assert!(git_repo.head().unwrap().is_detached());
     insta::assert_snapshot!(
-        git_repo.head().unwrap().target().unwrap().to_string(),
-        @"4f546c80f30abc0803fb83e5032a4d49fede4d68"
+        git_repo.head_id().unwrap().to_string(),
+        @"59642000f061cf23eb37ab6eecce428afe7824da"
     );
 }
 
@@ -261,7 +252,7 @@ fn test_git_colocated_export_bookmarks_on_snapshot() {
 
     let test_env = TestEnvironment::default();
     let workspace_root = test_env.env_root().join("repo");
-    let git_repo = git2::Repository::init(&workspace_root).unwrap();
+    let git_repo = git::init(&workspace_root);
     test_env
         .run_jj_in(&workspace_root, ["git", "init", "--git-repo", "."])
         .success();
@@ -288,8 +279,7 @@ fn test_git_colocated_export_bookmarks_on_snapshot() {
     insta::assert_snapshot!(git_repo
         .find_reference("refs/heads/foo")
         .unwrap()
-        .target()
-        .unwrap()
+        .id()
         .to_string(), @"4d2c49a8f8e2f1ba61f48ba79e5f4a5faa6512cf");
 }
 
@@ -297,7 +287,7 @@ fn test_git_colocated_export_bookmarks_on_snapshot() {
 fn test_git_colocated_rebase_on_import() {
     let test_env = TestEnvironment::default();
     let workspace_root = test_env.env_root().join("repo");
-    let git_repo = git2::Repository::init(&workspace_root).unwrap();
+    let git_repo = git::init(&workspace_root);
     test_env
         .run_jj_in(&workspace_root, ["git", "init", "--git-repo", "."])
         .success();
@@ -320,15 +310,23 @@ fn test_git_colocated_rebase_on_import() {
 
     // Move `master` backwards, which should result in commit2 getting hidden,
     // and the working-copy commit rebased.
-    let commit2_oid = git_repo
-        .find_branch("master", git2::BranchType::Local)
+    let parent_commit = git_repo
+        .find_reference("refs/heads/master")
         .unwrap()
-        .get()
-        .target()
+        .peel_to_commit()
+        .unwrap()
+        .parent_ids()
+        .next()
+        .unwrap()
+        .detach();
+    git_repo
+        .reference(
+            "refs/heads/master",
+            parent_commit,
+            gix::refs::transaction::PreviousValue::Any,
+            "update ref",
+        )
         .unwrap();
-    let commit2 = git_repo.find_commit(commit2_oid).unwrap();
-    let commit1 = commit2.parents().next().unwrap();
-    git_repo.branch("master", &commit1, true).unwrap();
     insta::assert_snapshot!(get_log_output(&test_env, &workspace_root), @r"
     @  15b1d70c5e33b5d2b18383292b85324d5153ffed
     ○  47fe984daf66f7bf3ebf31b9cb3513c995afb857 master git_head() add a file
@@ -349,7 +347,7 @@ fn test_git_colocated_rebase_on_import() {
 fn test_git_colocated_bookmarks() {
     let test_env = TestEnvironment::default();
     let workspace_root = test_env.env_root().join("repo");
-    let git_repo = git2::Repository::init(&workspace_root).unwrap();
+    let git_repo = git::init(&workspace_root);
     test_env
         .run_jj_in(&workspace_root, ["git", "init", "--git-repo", "."])
         .success();
@@ -374,11 +372,12 @@ fn test_git_colocated_bookmarks() {
         .run_jj_in(&workspace_root, ["bookmark", "create", "-r@", "master"])
         .success();
     insta::assert_snapshot!(
-        git_repo.find_reference("refs/heads/master").unwrap().target().unwrap().to_string(),
+        git_repo.find_reference("refs/heads/master").unwrap().target().id().to_string(),
         @"3560559274ab431feea00b7b7e0b9250ecce951f"
     );
+    assert!(git_repo.head().unwrap().is_detached());
     insta::assert_snapshot!(
-        git_repo.head().unwrap().target().unwrap().to_string(),
+        git_repo.head_id().unwrap().to_string(),
         @"230dd059e1b059aefc0da06a2e5a7dbf22362f22"
     );
 
@@ -394,8 +393,8 @@ fn test_git_colocated_bookmarks() {
     git_repo
         .reference(
             "refs/heads/master",
-            Oid::from_str(&target_id).unwrap(),
-            true,
+            gix::ObjectId::from_hex(target_id.as_bytes()).unwrap(),
+            gix::refs::transaction::PreviousValue::Any,
             "test",
         )
         .unwrap();
@@ -419,7 +418,7 @@ fn test_git_colocated_bookmarks() {
 fn test_git_colocated_bookmark_forget() {
     let test_env = TestEnvironment::default();
     let workspace_root = test_env.env_root().join("repo");
-    let _git_repo = git2::Repository::init(&workspace_root).unwrap();
+    git::init(&workspace_root);
     test_env
         .run_jj_in(&workspace_root, ["git", "init", "--git-repo", "."])
         .success();
@@ -502,7 +501,7 @@ fn test_git_colocated_bookmark_at_root() {
 fn test_git_colocated_conflicting_git_refs() {
     let test_env = TestEnvironment::default();
     let workspace_root = test_env.env_root().join("repo");
-    git2::Repository::init(&workspace_root).unwrap();
+    git::init(&workspace_root);
     test_env
         .run_jj_in(&workspace_root, ["git", "init", "--git-repo", "."])
         .success();
@@ -528,40 +527,30 @@ fn test_git_colocated_conflicting_git_refs() {
 fn test_git_colocated_checkout_non_empty_working_copy() {
     let test_env = TestEnvironment::default();
     let workspace_root = test_env.env_root().join("repo");
-    let git_repo = git2::Repository::init(&workspace_root).unwrap();
+    let git_repo = git::init(&workspace_root);
     test_env
         .run_jj_in(&workspace_root, ["git", "init", "--git-repo", "."])
         .success();
 
     // Create an initial commit in Git
     // We use this to set HEAD to master
-    std::fs::write(workspace_root.join("file"), "contents").unwrap();
-    git_repo
-        .index()
-        .unwrap()
-        .add_path(Path::new("file"))
-        .unwrap();
-    let tree1_oid = git_repo.index().unwrap().write_tree().unwrap();
-    let tree1 = git_repo.find_tree(tree1_oid).unwrap();
-    let signature = git2::Signature::new(
-        "Someone",
-        "someone@example.com",
-        &git2::Time::new(1234567890, 60),
+    let tree_id = git::add_commit(
+        &git_repo,
+        "refs/heads/master",
+        "file",
+        b"contents",
+        "initial",
+        &[],
     )
-    .unwrap();
-    git_repo
-        .commit(
-            Some("refs/heads/master"),
-            &signature,
-            &signature,
-            "initial",
-            &tree1,
-            &[],
-        )
-        .unwrap();
+    .tree_id;
+    git::checkout_tree_index(&git_repo, tree_id);
+    assert_eq!(
+        std::fs::read(workspace_root.join("file")).unwrap(),
+        b"contents"
+    );
     insta::assert_snapshot!(
-        git_repo.head().unwrap().peel_to_commit().unwrap().id().to_string(),
-        @"e61b6729ff4292870702f2f72b2a60165679ef37"
+        git_repo.head_id().unwrap().to_string(),
+        @"97358f54806c7cd005ed5ade68a779595efbae7e"
     );
 
     std::fs::write(workspace_root.join("two"), "y").unwrap();
@@ -573,21 +562,21 @@ fn test_git_colocated_checkout_non_empty_working_copy() {
     let output = test_env.run_jj_in(&workspace_root, ["describe", "-m", "new"]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
-    Working copy now at: kkmpptxz 149cc31c (empty) new
-    Parent commit      : lnksqltp e61b6729 master | initial
+    Working copy now at: kkmpptxz acea3383 (empty) new
+    Parent commit      : slsumksp 97358f54 master | initial
     [EOF]
     ");
 
-    let git_head = git_repo.find_reference("HEAD").unwrap();
-    let git_head_target = git_head.symbolic_target().unwrap();
-
-    assert_eq!(git_head_target, "refs/heads/master");
+    assert_eq!(
+        git_repo.head_name().unwrap().unwrap().as_bstr(),
+        b"refs/heads/master"
+    );
 
     insta::assert_snapshot!(get_log_output(&test_env, &workspace_root), @r"
-    @  149cc31cb08a1589e6c5ee2cb2061559dc758ecb new
-    │ ○  4ec6f6506bd1903410f15b80058a7f0d8f62deea two
+    @  acea3383e7a9e4e0df035ee0e83d04cac44a3a14 new
+    │ ○  a99003c2d01be21a82b33c0946c30c596e900287 two
     ├─╯
-    ○  e61b6729ff4292870702f2f72b2a60165679ef37 master git_head() initial
+    ○  97358f54806c7cd005ed5ade68a779595efbae7e master git_head() initial
     ◆  0000000000000000000000000000000000000000
     [EOF]
     ");
@@ -669,7 +658,7 @@ fn test_git_colocated_fetch_deleted_or_moved_bookmark() {
 fn test_git_colocated_rebase_dirty_working_copy() {
     let test_env = TestEnvironment::default();
     let repo_path = test_env.env_root().join("repo");
-    let git_repo = git2::Repository::init(&repo_path).unwrap();
+    let git_repo = git::init(&repo_path);
     test_env
         .run_jj_in(&repo_path, ["git", "init", "--git-repo=."])
         .success();
@@ -723,11 +712,15 @@ fn test_git_colocated_rebase_dirty_working_copy() {
 fn test_git_colocated_external_checkout() {
     let test_env = TestEnvironment::default();
     let repo_path = test_env.env_root().join("repo");
-    let git_repo = git2::Repository::init(&repo_path).unwrap();
+    let git_repo = git::init(&repo_path);
     let git_check_out_ref = |name| {
-        git_repo
-            .set_head_detached(git_repo.find_reference(name).unwrap().target().unwrap())
-            .unwrap();
+        let target = git_repo
+            .find_reference(name)
+            .unwrap()
+            .into_fully_peeled_id()
+            .unwrap()
+            .detach();
+        git::set_head_to_id(&git_repo, target);
     };
 
     test_env
@@ -809,7 +802,7 @@ fn test_git_colocated_external_checkout() {
 fn test_git_colocated_squash_undo() {
     let test_env = TestEnvironment::default();
     let repo_path = test_env.env_root().join("repo");
-    git2::Repository::init(&repo_path).unwrap();
+    git::init(&repo_path);
     test_env
         .run_jj_in(&repo_path, ["git", "init", "--git-repo=."])
         .success();
@@ -844,15 +837,16 @@ fn test_git_colocated_squash_undo() {
 fn test_git_colocated_undo_head_move() {
     let test_env = TestEnvironment::default();
     let repo_path = test_env.env_root().join("repo");
-    let git_repo = git2::Repository::init(&repo_path).unwrap();
+    let git_repo = git::init(&repo_path);
     test_env
         .run_jj_in(&repo_path, ["git", "init", "--git-repo=."])
         .success();
 
     // Create new HEAD
     test_env.run_jj_in(&repo_path, ["new"]).success();
+    assert!(git_repo.head().unwrap().is_detached());
     insta::assert_snapshot!(
-        git_repo.head().unwrap().target().unwrap().to_string(),
+        git_repo.head_id().unwrap().to_string(),
         @"230dd059e1b059aefc0da06a2e5a7dbf22362f22");
     insta::assert_snapshot!(get_log_output(&test_env, &repo_path), @r"
     @  65b6b74e08973b88d38404430f119c8c79465250
@@ -863,7 +857,7 @@ fn test_git_colocated_undo_head_move() {
 
     // HEAD should be unset
     test_env.run_jj_in(&repo_path, ["undo"]).success();
-    assert!(git_repo.head().is_err());
+    assert!(git_repo.head().unwrap().is_unborn());
     insta::assert_snapshot!(get_log_output(&test_env, &repo_path), @r"
     @  230dd059e1b059aefc0da06a2e5a7dbf22362f22
     ◆  0000000000000000000000000000000000000000
@@ -880,8 +874,9 @@ fn test_git_colocated_undo_head_move() {
     ◆  0000000000000000000000000000000000000000
     [EOF]
     ");
+    assert!(git_repo.head().unwrap().is_detached());
     insta::assert_snapshot!(
-        git_repo.head().unwrap().target().unwrap().to_string(),
+        git_repo.head_id().unwrap().to_string(),
         @"eb08b363bb5ef8ee549314260488980d7bbe8f63");
 
     // HEAD should be moved back
@@ -893,8 +888,9 @@ fn test_git_colocated_undo_head_move() {
     Parent commit      : qpvuntsm 230dd059 (empty) (no description set)
     [EOF]
     ");
+    assert!(git_repo.head().unwrap().is_detached());
     insta::assert_snapshot!(
-        git_repo.head().unwrap().target().unwrap().to_string(),
+        git_repo.head_id().unwrap().to_string(),
         @"230dd059e1b059aefc0da06a2e5a7dbf22362f22");
     insta::assert_snapshot!(get_log_output(&test_env, &repo_path), @r"
     @  eb08b363bb5ef8ee549314260488980d7bbe8f63
@@ -1333,11 +1329,22 @@ fn get_log_output(test_env: &TestEnvironment, workspace_root: &Path) -> CommandO
 }
 
 fn update_git_index(repo_path: &Path) {
-    git2::Repository::open(repo_path)
+    let mut iter = git::open(repo_path)
+        .status(gix::progress::Discard)
         .unwrap()
-        .diff_index_to_workdir(None, Some(git2::DiffOptions::new().update_index(true)))
+        .into_index_worktree_iter(None)
+        .unwrap();
+
+    // need to explicitly iterate over the changes to recreate the index
+
+    for item in iter.by_ref() {
+        item.unwrap();
+    }
+
+    iter.outcome_mut()
         .unwrap()
-        .stats()
+        .write_changes()
+        .unwrap()
         .unwrap();
 }
 
@@ -1375,53 +1382,41 @@ fn get_index_state(repo_path: &Path) -> String {
 fn test_git_colocated_unreachable_commits() {
     let test_env = TestEnvironment::default();
     let workspace_root = test_env.env_root().join("repo");
-    let git_repo = git2::Repository::init(&workspace_root).unwrap();
+    let git_repo = git::init(&workspace_root);
 
     // Create an initial commit in Git
-    let empty_tree_oid = git_repo.treebuilder(None).unwrap().write().unwrap();
-    let tree1 = git_repo.find_tree(empty_tree_oid).unwrap();
-    let signature = git2::Signature::new(
-        "Someone",
-        "someone@example.com",
-        &git2::Time::new(1234567890, 60),
+    let commit1 = git::add_commit(
+        &git_repo,
+        "refs/heads/master",
+        "some-file",
+        b"some content",
+        "initial",
+        &[],
     )
-    .unwrap();
-    let oid1 = git_repo
-        .commit(
-            Some("refs/heads/master"),
-            &signature,
-            &signature,
-            "initial",
-            &tree1,
-            &[],
-        )
-        .unwrap();
+    .commit_id;
     insta::assert_snapshot!(
-        git_repo.head().unwrap().peel_to_commit().unwrap().id().to_string(),
-        @"2ee37513d2b5e549f7478c671a780053614bff19"
+        git_repo.head_id().unwrap().to_string(),
+        @"cd740e230992f334de13a0bd0b35709b3f7a89af"
     );
 
     // Add a second commit in Git
-    let tree2 = git_repo.find_tree(empty_tree_oid).unwrap();
-    let signature = git2::Signature::new(
-        "Someone",
-        "someone@example.com",
-        &git2::Time::new(1234567890, 62),
+    let commit2 = git::add_commit(
+        &git_repo,
+        "refs/heads/dummy",
+        "next-file",
+        b"more content",
+        "next",
+        &[commit1],
     )
-    .unwrap();
-    let oid2 = git_repo
-        .commit(
-            None,
-            &signature,
-            &signature,
-            "next",
-            &tree2,
-            &[&git_repo.find_commit(oid1).unwrap()],
-        )
+    .commit_id;
+    git_repo
+        .find_reference("refs/heads/dummy")
+        .unwrap()
+        .delete()
         .unwrap();
     insta::assert_snapshot!(
-        git_repo.head().unwrap().peel_to_commit().unwrap().id().to_string(),
-        @"2ee37513d2b5e549f7478c671a780053614bff19"
+        git_repo.head_id().unwrap().to_string(),
+        @"cd740e230992f334de13a0bd0b35709b3f7a89af"
     );
 
     // Import the repo while there is no path to the second commit
@@ -1429,21 +1424,21 @@ fn test_git_colocated_unreachable_commits() {
         .run_jj_in(&workspace_root, ["git", "init", "--git-repo", "."])
         .success();
     insta::assert_snapshot!(get_log_output(&test_env, &workspace_root), @r"
-    @  66ae47cee4f8c28ee8d7e4f5d9401b03c07e22f2
-    ○  2ee37513d2b5e549f7478c671a780053614bff19 master git_head() initial
+    @  9ff88424a06a94d04738847733e68e510b906345
+    ○  cd740e230992f334de13a0bd0b35709b3f7a89af master git_head() initial
     ◆  0000000000000000000000000000000000000000
     [EOF]
     ");
     insta::assert_snapshot!(
-        git_repo.head().unwrap().peel_to_commit().unwrap().id().to_string(),
-        @"2ee37513d2b5e549f7478c671a780053614bff19"
+        git_repo.head_id().unwrap().to_string(),
+        @"cd740e230992f334de13a0bd0b35709b3f7a89af"
     );
 
     // Check that trying to look up the second commit fails gracefully
-    let output = test_env.run_jj_in(&workspace_root, ["show", &oid2.to_string()]);
+    let output = test_env.run_jj_in(&workspace_root, ["show", &commit2.to_string()]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
-    Error: Revision `8e713ff77b54928dd4a82aaabeca44b1ae91722c` doesn't exist
+    Error: Revision `b23bb53bdce25f0e03ff9e484eadb77626256041` doesn't exist
     [EOF]
     [exit status: 1]
     ");

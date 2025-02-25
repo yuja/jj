@@ -188,6 +188,21 @@ pub fn set_symbolic_reference(repo: &gix::Repository, reference: &str, target: &
     repo.edit_reference(ref_edit).unwrap();
 }
 
+pub fn checkout_tree_index(repo: &gix::Repository, tree_id: gix::ObjectId) {
+    let objects = repo.objects.clone();
+    let mut index = repo.index_from_tree(&tree_id).unwrap();
+    gix::worktree::state::checkout(
+        &mut index,
+        repo.work_dir().unwrap(),
+        objects,
+        &gix::progress::Discard,
+        &gix::progress::Discard,
+        &gix::interrupt::IS_INTERRUPTED,
+        gix::worktree::state::checkout::Options::default(),
+    )
+    .unwrap();
+}
+
 fn signature() -> gix::actor::Signature {
     gix::actor::Signature {
         name: bstr::BString::from(GIT_USER),
