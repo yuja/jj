@@ -88,6 +88,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `jj sign` supports configuring the default revset through `revsets.sign` when
   no `--revisions` arguments are provided.
 
+* `jj git fetch` now supports [string pattern syntax](docs/revsets.md#string-patterns)
+  on `--remote` option and `git.fetch` configuration.
+
 ### Fixed bugs
 
 * `jj status` now shows untracked files under untracked directories.
