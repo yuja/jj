@@ -28,6 +28,7 @@ use jj_lib::repo_path::RepoPath;
 use jj_lib::rewrite::rebase_commit_with_options;
 use jj_lib::rewrite::restore_tree;
 use jj_lib::rewrite::CommitRewriter;
+use jj_lib::rewrite::CommitWithSelection;
 use jj_lib::rewrite::EmptyBehaviour;
 use jj_lib::rewrite::RebaseOptions;
 use jj_lib::rewrite::RewriteRefsOptions;
@@ -1851,4 +1852,30 @@ fn test_rebase_abandoning_empty() {
         *tx.repo().view().heads(),
         hashset! {new_commit_f.id().clone(), new_wc_commit_id.clone()}
     );
+}
+
+#[test]
+fn test_commit_with_selection() {
+    let test_repo = TestRepo::init();
+    let repo = &test_repo.repo;
+
+    let mut tx = repo.start_transaction();
+    let root_tree = repo.store().root_commit().tree().unwrap();
+    let commit = create_random_commit(tx.repo_mut()).write().unwrap();
+    let commit_tree = commit.tree().unwrap();
+    let empty_selection = CommitWithSelection {
+        commit: commit.clone(),
+        selected_tree: root_tree.clone(),
+        parent_tree: root_tree.clone(),
+    };
+    assert!(empty_selection.is_empty_selection());
+    assert!(!empty_selection.is_full_selection());
+
+    let full_selection = CommitWithSelection {
+        commit,
+        selected_tree: commit_tree,
+        parent_tree: root_tree,
+    };
+    assert!(!full_selection.is_empty_selection());
+    assert!(full_selection.is_full_selection());
 }
