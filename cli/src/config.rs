@@ -1240,12 +1240,12 @@ mod tests {
     #[test]
     fn test_config_path_home_existing() -> anyhow::Result<()> {
         TestCase {
-            files: ["home/.jjconfig.toml"],
+            files: &["home/.jjconfig.toml"],
             env: UnresolvedConfigEnv {
                 home_dir: Some("home".into()),
                 ..Default::default()
             },
-            wants: [Want::Existing("home/.jjconfig.toml")],
+            wants: &[Want::Existing("home/.jjconfig.toml")],
         }
         .run()
     }
@@ -1253,12 +1253,12 @@ mod tests {
     #[test]
     fn test_config_path_home_new() -> anyhow::Result<()> {
         TestCase {
-            files: [],
+            files: &[],
             env: UnresolvedConfigEnv {
                 home_dir: Some("home".into()),
                 ..Default::default()
             },
-            wants: [Want::New("home/.jjconfig.toml")],
+            wants: &[Want::New("home/.jjconfig.toml")],
         }
         .run()
     }
@@ -1266,13 +1266,13 @@ mod tests {
     #[test]
     fn test_config_path_home_existing_platform_new() -> anyhow::Result<()> {
         TestCase {
-            files: ["home/.jjconfig.toml"],
+            files: &["home/.jjconfig.toml"],
             env: UnresolvedConfigEnv {
                 home_dir: Some("home".into()),
                 config_dir: Some("config".into()),
                 ..Default::default()
             },
-            wants: [
+            wants: &[
                 Want::Existing("home/.jjconfig.toml"),
                 Want::New("config/jj/config.toml"),
             ],
@@ -1283,13 +1283,13 @@ mod tests {
     #[test]
     fn test_config_path_platform_existing() -> anyhow::Result<()> {
         TestCase {
-            files: ["config/jj/config.toml"],
+            files: &["config/jj/config.toml"],
             env: UnresolvedConfigEnv {
                 home_dir: Some("home".into()),
                 config_dir: Some("config".into()),
                 ..Default::default()
             },
-            wants: [Want::Existing("config/jj/config.toml")],
+            wants: &[Want::Existing("config/jj/config.toml")],
         }
         .run()
     }
@@ -1297,12 +1297,12 @@ mod tests {
     #[test]
     fn test_config_path_platform_new() -> anyhow::Result<()> {
         TestCase {
-            files: [],
+            files: &[],
             env: UnresolvedConfigEnv {
                 config_dir: Some("config".into()),
                 ..Default::default()
             },
-            wants: [Want::New("config/jj/config.toml")],
+            wants: &[Want::New("config/jj/config.toml")],
         }
         .run()
     }
@@ -1310,13 +1310,13 @@ mod tests {
     #[test]
     fn test_config_path_new_prefer_platform() -> anyhow::Result<()> {
         TestCase {
-            files: [],
+            files: &[],
             env: UnresolvedConfigEnv {
                 home_dir: Some("home".into()),
                 config_dir: Some("config".into()),
                 ..Default::default()
             },
-            wants: [Want::New("config/jj/config.toml")],
+            wants: &[Want::New("config/jj/config.toml")],
         }
         .run()
     }
@@ -1324,12 +1324,12 @@ mod tests {
     #[test]
     fn test_config_path_jj_config_existing() -> anyhow::Result<()> {
         TestCase {
-            files: ["custom.toml"],
+            files: &["custom.toml"],
             env: UnresolvedConfigEnv {
                 jj_config: Some("custom.toml".into()),
                 ..Default::default()
             },
-            wants: [Want::Existing("custom.toml")],
+            wants: &[Want::Existing("custom.toml")],
         }
         .run()
     }
@@ -1337,12 +1337,12 @@ mod tests {
     #[test]
     fn test_config_path_jj_config_new() -> anyhow::Result<()> {
         TestCase {
-            files: [],
+            files: &[],
             env: UnresolvedConfigEnv {
                 jj_config: Some("custom.toml".into()),
                 ..Default::default()
             },
-            wants: [Want::New("custom.toml")],
+            wants: &[Want::New("custom.toml")],
         }
         .run()
     }
@@ -1350,7 +1350,7 @@ mod tests {
     #[test]
     fn test_config_path_jj_config_existing_multiple() -> anyhow::Result<()> {
         TestCase {
-            files: ["custom1.toml", "custom2.toml"],
+            files: &["custom1.toml", "custom2.toml"],
             env: UnresolvedConfigEnv {
                 jj_config: Some(
                     join_paths(["custom1.toml", "custom2.toml"])
@@ -1360,7 +1360,7 @@ mod tests {
                 ),
                 ..Default::default()
             },
-            wants: [
+            wants: &[
                 Want::Existing("custom1.toml"),
                 Want::Existing("custom2.toml"),
             ],
@@ -1371,7 +1371,7 @@ mod tests {
     #[test]
     fn test_config_path_jj_config_new_multiple() -> anyhow::Result<()> {
         TestCase {
-            files: ["custom1.toml"],
+            files: &["custom1.toml"],
             env: UnresolvedConfigEnv {
                 jj_config: Some(
                     join_paths(["custom1.toml", "custom2.toml"])
@@ -1381,7 +1381,7 @@ mod tests {
                 ),
                 ..Default::default()
             },
-            wants: [Want::Existing("custom1.toml"), Want::New("custom2.toml")],
+            wants: &[Want::Existing("custom1.toml"), Want::New("custom2.toml")],
         }
         .run()
     }
@@ -1389,7 +1389,7 @@ mod tests {
     #[test]
     fn test_config_path_jj_config_empty_paths_filtered() -> anyhow::Result<()> {
         TestCase {
-            files: ["custom1.toml"],
+            files: &["custom1.toml"],
             env: UnresolvedConfigEnv {
                 jj_config: Some(
                     join_paths(["custom1.toml", "", "custom2.toml"])
@@ -1399,7 +1399,7 @@ mod tests {
                 ),
                 ..Default::default()
             },
-            wants: [Want::Existing("custom1.toml"), Want::New("custom2.toml")],
+            wants: &[Want::Existing("custom1.toml"), Want::New("custom2.toml")],
         }
         .run()
     }
@@ -1407,12 +1407,12 @@ mod tests {
     #[test]
     fn test_config_path_jj_config_empty() -> anyhow::Result<()> {
         TestCase {
-            files: [],
+            files: &[],
             env: UnresolvedConfigEnv {
                 jj_config: Some("".to_owned()),
                 ..Default::default()
             },
-            wants: [],
+            wants: &[],
         }
         .run()
     }
@@ -1420,13 +1420,13 @@ mod tests {
     #[test]
     fn test_config_path_config_pick_platform() -> anyhow::Result<()> {
         TestCase {
-            files: ["config/jj/config.toml"],
+            files: &["config/jj/config.toml"],
             env: UnresolvedConfigEnv {
                 home_dir: Some("home".into()),
                 config_dir: Some("config".into()),
                 ..Default::default()
             },
-            wants: [Want::Existing("config/jj/config.toml")],
+            wants: &[Want::Existing("config/jj/config.toml")],
         }
         .run()
     }
@@ -1434,13 +1434,13 @@ mod tests {
     #[test]
     fn test_config_path_config_pick_home() -> anyhow::Result<()> {
         TestCase {
-            files: ["home/.jjconfig.toml"],
+            files: &["home/.jjconfig.toml"],
             env: UnresolvedConfigEnv {
                 home_dir: Some("home".into()),
                 config_dir: Some("config".into()),
                 ..Default::default()
             },
-            wants: [
+            wants: &[
                 Want::Existing("home/.jjconfig.toml"),
                 Want::New("config/jj/config.toml"),
             ],
@@ -1451,13 +1451,13 @@ mod tests {
     #[test]
     fn test_config_path_platform_new_conf_dir_existing() -> anyhow::Result<()> {
         TestCase {
-            files: ["config/jj/conf.d/_"],
+            files: &["config/jj/conf.d/_"],
             env: UnresolvedConfigEnv {
                 home_dir: Some("home".into()),
                 config_dir: Some("config".into()),
                 ..Default::default()
             },
-            wants: [
+            wants: &[
                 Want::New("config/jj/config.toml"),
                 Want::Existing("config/jj/conf.d"),
             ],
@@ -1468,13 +1468,13 @@ mod tests {
     #[test]
     fn test_config_path_platform_existing_conf_dir_existing() -> anyhow::Result<()> {
         TestCase {
-            files: ["config/jj/config.toml", "config/jj/conf.d/_"],
+            files: &["config/jj/config.toml", "config/jj/conf.d/_"],
             env: UnresolvedConfigEnv {
                 home_dir: Some("home".into()),
                 config_dir: Some("config".into()),
                 ..Default::default()
             },
-            wants: [
+            wants: &[
                 Want::Existing("config/jj/config.toml"),
                 Want::Existing("config/jj/conf.d"),
             ],
@@ -1485,7 +1485,7 @@ mod tests {
     #[test]
     fn test_config_path_all_existing() -> anyhow::Result<()> {
         TestCase {
-            files: [
+            files: &[
                 "config/jj/conf.d/_",
                 "config/jj/config.toml",
                 "home/.jjconfig.toml",
@@ -1496,7 +1496,7 @@ mod tests {
                 ..Default::default()
             },
             // Precedence order is important
-            wants: [
+            wants: &[
                 Want::Existing("home/.jjconfig.toml"),
                 Want::Existing("config/jj/config.toml"),
                 Want::Existing("config/jj/conf.d"),
@@ -1508,16 +1508,14 @@ mod tests {
     #[test]
     fn test_config_path_none() -> anyhow::Result<()> {
         TestCase {
-            files: [],
+            files: &[],
             env: Default::default(),
-            wants: [],
+            wants: &[],
         }
         .run()
     }
 
-    fn setup_config_fs<const N: usize>(
-        files: &[&'static str; N],
-    ) -> anyhow::Result<tempfile::TempDir> {
+    fn setup_config_fs(files: &[&str]) -> anyhow::Result<tempfile::TempDir> {
         let tmp = testutils::new_temp_dir();
         for file in files {
             let path = tmp.path().join(file);
@@ -1534,13 +1532,13 @@ mod tests {
         Existing(&'static str),
     }
 
-    struct TestCase<const N: usize, const M: usize> {
-        files: [&'static str; N],
+    struct TestCase {
+        files: &'static [&'static str],
         env: UnresolvedConfigEnv,
-        wants: [Want; M],
+        wants: &'static [Want],
     }
 
-    impl<const N: usize, const M: usize> TestCase<N, M> {
+    impl TestCase {
         fn resolve(&self, root: &Path) -> ConfigEnv {
             let home_dir = self.env.home_dir.as_ref().map(|p| root.join(p));
             let env = UnresolvedConfigEnv {
@@ -1568,7 +1566,7 @@ mod tests {
         }
 
         fn run(&self) -> anyhow::Result<()> {
-            let tmp = setup_config_fs(&self.files)?;
+            let tmp = setup_config_fs(self.files)?;
             self.check_existing_paths(&tmp)?;
             self.check_paths(&tmp)?;
             Ok(())
