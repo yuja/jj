@@ -791,6 +791,7 @@ mod tests {
     use anyhow::anyhow;
     use indoc::indoc;
     use maplit::hashmap;
+    use test_case::test_case;
 
     use super::*;
 
@@ -1237,8 +1238,7 @@ mod tests {
         insta::assert_snapshot!(list(&layers, "a.b.c"), @r#"!a.b.c.f = "0.1""#);
     }
 
-    #[test]
-    fn test_config_path_home_existing() -> anyhow::Result<()> {
+    fn config_path_home_existing() -> TestCase {
         TestCase {
             files: &["home/.jjconfig.toml"],
             env: UnresolvedConfigEnv {
@@ -1247,11 +1247,9 @@ mod tests {
             },
             wants: &[Want::Existing("home/.jjconfig.toml")],
         }
-        .run()
     }
 
-    #[test]
-    fn test_config_path_home_new() -> anyhow::Result<()> {
+    fn config_path_home_new() -> TestCase {
         TestCase {
             files: &[],
             env: UnresolvedConfigEnv {
@@ -1260,11 +1258,9 @@ mod tests {
             },
             wants: &[Want::New("home/.jjconfig.toml")],
         }
-        .run()
     }
 
-    #[test]
-    fn test_config_path_home_existing_platform_new() -> anyhow::Result<()> {
+    fn config_path_home_existing_platform_new() -> TestCase {
         TestCase {
             files: &["home/.jjconfig.toml"],
             env: UnresolvedConfigEnv {
@@ -1277,11 +1273,9 @@ mod tests {
                 Want::New("config/jj/config.toml"),
             ],
         }
-        .run()
     }
 
-    #[test]
-    fn test_config_path_platform_existing() -> anyhow::Result<()> {
+    fn config_path_platform_existing() -> TestCase {
         TestCase {
             files: &["config/jj/config.toml"],
             env: UnresolvedConfigEnv {
@@ -1291,11 +1285,9 @@ mod tests {
             },
             wants: &[Want::Existing("config/jj/config.toml")],
         }
-        .run()
     }
 
-    #[test]
-    fn test_config_path_platform_new() -> anyhow::Result<()> {
+    fn config_path_platform_new() -> TestCase {
         TestCase {
             files: &[],
             env: UnresolvedConfigEnv {
@@ -1304,11 +1296,9 @@ mod tests {
             },
             wants: &[Want::New("config/jj/config.toml")],
         }
-        .run()
     }
 
-    #[test]
-    fn test_config_path_new_prefer_platform() -> anyhow::Result<()> {
+    fn config_path_new_prefer_platform() -> TestCase {
         TestCase {
             files: &[],
             env: UnresolvedConfigEnv {
@@ -1318,11 +1308,9 @@ mod tests {
             },
             wants: &[Want::New("config/jj/config.toml")],
         }
-        .run()
     }
 
-    #[test]
-    fn test_config_path_jj_config_existing() -> anyhow::Result<()> {
+    fn config_path_jj_config_existing() -> TestCase {
         TestCase {
             files: &["custom.toml"],
             env: UnresolvedConfigEnv {
@@ -1331,11 +1319,9 @@ mod tests {
             },
             wants: &[Want::Existing("custom.toml")],
         }
-        .run()
     }
 
-    #[test]
-    fn test_config_path_jj_config_new() -> anyhow::Result<()> {
+    fn config_path_jj_config_new() -> TestCase {
         TestCase {
             files: &[],
             env: UnresolvedConfigEnv {
@@ -1344,11 +1330,9 @@ mod tests {
             },
             wants: &[Want::New("custom.toml")],
         }
-        .run()
     }
 
-    #[test]
-    fn test_config_path_jj_config_existing_multiple() -> anyhow::Result<()> {
+    fn config_path_jj_config_existing_multiple() -> TestCase {
         TestCase {
             files: &["custom1.toml", "custom2.toml"],
             env: UnresolvedConfigEnv {
@@ -1365,11 +1349,9 @@ mod tests {
                 Want::Existing("custom2.toml"),
             ],
         }
-        .run()
     }
 
-    #[test]
-    fn test_config_path_jj_config_new_multiple() -> anyhow::Result<()> {
+    fn config_path_jj_config_new_multiple() -> TestCase {
         TestCase {
             files: &["custom1.toml"],
             env: UnresolvedConfigEnv {
@@ -1383,11 +1365,9 @@ mod tests {
             },
             wants: &[Want::Existing("custom1.toml"), Want::New("custom2.toml")],
         }
-        .run()
     }
 
-    #[test]
-    fn test_config_path_jj_config_empty_paths_filtered() -> anyhow::Result<()> {
+    fn config_path_jj_config_empty_paths_filtered() -> TestCase {
         TestCase {
             files: &["custom1.toml"],
             env: UnresolvedConfigEnv {
@@ -1401,11 +1381,9 @@ mod tests {
             },
             wants: &[Want::Existing("custom1.toml"), Want::New("custom2.toml")],
         }
-        .run()
     }
 
-    #[test]
-    fn test_config_path_jj_config_empty() -> anyhow::Result<()> {
+    fn config_path_jj_config_empty() -> TestCase {
         TestCase {
             files: &[],
             env: UnresolvedConfigEnv {
@@ -1414,11 +1392,9 @@ mod tests {
             },
             wants: &[],
         }
-        .run()
     }
 
-    #[test]
-    fn test_config_path_config_pick_platform() -> anyhow::Result<()> {
+    fn config_path_config_pick_platform() -> TestCase {
         TestCase {
             files: &["config/jj/config.toml"],
             env: UnresolvedConfigEnv {
@@ -1428,11 +1404,9 @@ mod tests {
             },
             wants: &[Want::Existing("config/jj/config.toml")],
         }
-        .run()
     }
 
-    #[test]
-    fn test_config_path_config_pick_home() -> anyhow::Result<()> {
+    fn config_path_config_pick_home() -> TestCase {
         TestCase {
             files: &["home/.jjconfig.toml"],
             env: UnresolvedConfigEnv {
@@ -1445,11 +1419,9 @@ mod tests {
                 Want::New("config/jj/config.toml"),
             ],
         }
-        .run()
     }
 
-    #[test]
-    fn test_config_path_platform_new_conf_dir_existing() -> anyhow::Result<()> {
+    fn config_path_platform_new_conf_dir_existing() -> TestCase {
         TestCase {
             files: &["config/jj/conf.d/_"],
             env: UnresolvedConfigEnv {
@@ -1462,11 +1434,9 @@ mod tests {
                 Want::Existing("config/jj/conf.d"),
             ],
         }
-        .run()
     }
 
-    #[test]
-    fn test_config_path_platform_existing_conf_dir_existing() -> anyhow::Result<()> {
+    fn config_path_platform_existing_conf_dir_existing() -> TestCase {
         TestCase {
             files: &["config/jj/config.toml", "config/jj/conf.d/_"],
             env: UnresolvedConfigEnv {
@@ -1479,11 +1449,9 @@ mod tests {
                 Want::Existing("config/jj/conf.d"),
             ],
         }
-        .run()
     }
 
-    #[test]
-    fn test_config_path_all_existing() -> anyhow::Result<()> {
+    fn config_path_all_existing() -> TestCase {
         TestCase {
             files: &[
                 "config/jj/conf.d/_",
@@ -1502,17 +1470,36 @@ mod tests {
                 Want::Existing("config/jj/conf.d"),
             ],
         }
-        .run()
     }
 
-    #[test]
-    fn test_config_path_none() -> anyhow::Result<()> {
+    fn config_path_none() -> TestCase {
         TestCase {
             files: &[],
             env: Default::default(),
             wants: &[],
         }
-        .run()
+    }
+
+    #[test_case(config_path_home_existing())]
+    #[test_case(config_path_home_new())]
+    #[test_case(config_path_home_existing_platform_new())]
+    #[test_case(config_path_platform_existing())]
+    #[test_case(config_path_platform_new())]
+    #[test_case(config_path_new_prefer_platform())]
+    #[test_case(config_path_jj_config_existing())]
+    #[test_case(config_path_jj_config_new())]
+    #[test_case(config_path_jj_config_existing_multiple())]
+    #[test_case(config_path_jj_config_new_multiple())]
+    #[test_case(config_path_jj_config_empty_paths_filtered())]
+    #[test_case(config_path_jj_config_empty())]
+    #[test_case(config_path_config_pick_platform())]
+    #[test_case(config_path_config_pick_home())]
+    #[test_case(config_path_platform_new_conf_dir_existing())]
+    #[test_case(config_path_platform_existing_conf_dir_existing())]
+    #[test_case(config_path_all_existing())]
+    #[test_case(config_path_none())]
+    fn test_config_path(case: TestCase) -> anyhow::Result<()> {
+        case.run()
     }
 
     fn setup_config_fs(files: &[&str]) -> anyhow::Result<tempfile::TempDir> {
