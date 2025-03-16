@@ -66,7 +66,7 @@ jobs:
         toolchain: 1.85
     - uses: taiki-e/install-action@6064345e6658255e90e9500fdf9a06ab77e6909c
       with:
-        tool: nextest,taplo-cli
+        tool: nextest
     - name: Install mold
       uses: rui314/setup-mold@702b1908b5edf30d71a8d1666b724e0f0c6fa035
       with:
@@ -313,7 +313,7 @@ jobs:
           fi
         env:
           # This limit *can* be raised, we just want to be aware if we exceed it
-          TOTAL_DEP_LIMIT: 500
+          TOTAL_DEP_LIMIT: 550
 
   # Block the merge if required checks fail, but only in the merge
   # queue. See also `required-checks-hack.yml`.

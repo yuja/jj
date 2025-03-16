@@ -27,6 +27,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed bugs
 
+### Packaging changes
+
+* The test suite no longer optionally uses Taplo CLI, and packagers can
+  remove it as a dependency if present.
+
 ## [0.32.0] - 2025-08-06
 
 ### Breaking changes

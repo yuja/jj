@@ -13,53 +13,42 @@
 // limitations under the License.
 
 use std::path::Path;
-use std::process::Command;
-use std::process::Output;
-use std::process::Stdio;
 
-use testutils::ensure_running_outside_ci;
-use testutils::is_external_tool_installed;
+use itertools::Itertools as _;
 
-fn taplo_check_config(file: &Path) -> datatest_stable::Result<Option<Output>> {
-    if !is_external_tool_installed("taplo") {
-        ensure_running_outside_ci("`taplo` must be in the PATH");
-        eprintln!("Skipping test because taplo is not installed on the system");
-        return Ok(None);
+fn validate_config_toml(config_toml: String) -> Result<(), String> {
+    let config = toml_edit::de::from_str(&config_toml).unwrap();
+
+    // TODO: Fix unfortunate duplication with `test_config_schema.rs`.
+    const SCHEMA_SRC: &str = include_str!("../src/config-schema.json");
+    let schema = serde_json::from_str(SCHEMA_SRC).expect("`config-schema.json` to be valid JSON");
+    let validator =
+        jsonschema::validator_for(&schema).expect("`config-schema.json` to be a valid schema");
+    match validator.apply(&config).basic() {
+        jsonschema::BasicOutput::Valid(_) => Ok(()),
+        jsonschema::BasicOutput::Invalid(errs) => Err(errs
+            .into_iter()
+            .map(|err| format!("* {}: {}", err.instance_location(), err.error_description()))
+            .join("\n")),
     }
-
-    // Taplo requires an absolute URL to the schema :/
-    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    Ok(Some(
-        Command::new("taplo")
-            .args([
-                "check",
-                "--schema",
-                &format!("file://{}/src/config-schema.json", root.display()),
-            ])
-            .arg(file.as_os_str())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?
-            .wait_with_output()?,
-    ))
 }
 
-pub(crate) fn taplo_check_config_valid(file: &Path) -> datatest_stable::Result<()> {
-    if let Some(taplo_res) = taplo_check_config(file)? {
-        if !taplo_res.status.success() {
-            eprintln!("Failed to validate {}:", file.display());
-            eprintln!("{}", String::from_utf8_lossy(&taplo_res.stderr));
-            return Err("Validation failed".into());
-        }
+pub(crate) fn check_config_file_valid(
+    path: &Path,
+    config_toml: String,
+) -> datatest_stable::Result<()> {
+    if let Err(err) = validate_config_toml(config_toml) {
+        panic!("Failed to validate `{}`:\n{err}", path.display());
     }
     Ok(())
 }
 
-pub(crate) fn taplo_check_config_invalid(file: &Path) -> datatest_stable::Result<()> {
-    if let Some(taplo_res) = taplo_check_config(file)? {
-        if taplo_res.status.success() {
-            return Err("Validation unexpectedly passed".into());
-        }
+pub(crate) fn check_config_file_invalid(
+    path: &Path,
+    config_toml: String,
+) -> datatest_stable::Result<()> {
+    if let Ok(()) = validate_config_toml(config_toml) {
+        panic!("Validation for `{}` unexpectedly passed", path.display());
     }
     Ok(())
 }
