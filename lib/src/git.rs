@@ -110,9 +110,9 @@ pub struct GitPushStats {
     /// reference accepted by the remote
     pub pushed: Vec<String>,
     /// rejected reference, due to lease failure, with an optional reason
-    pub rejected: Vec<String>,
+    pub rejected: Vec<(String, Option<String>)>,
     /// reference rejected by the remote, with an optional reason
-    pub remote_rejected: Vec<String>,
+    pub remote_rejected: Vec<(String, Option<String>)>,
 }
 
 impl GitPushStats {
@@ -2629,11 +2629,15 @@ fn git2_push_refs(
     for failed_update in &failed_push_negotiations {
         remaining_remote_refs.remove(failed_update.as_str());
     }
-    let rejected: Vec<_> = failed_push_negotiations.into_iter().sorted().collect();
+    let rejected: Vec<_> = failed_push_negotiations
+        .into_iter()
+        .sorted()
+        .map(|name| (name, None))
+        .collect();
     let remote_rejected: Vec<_> = remaining_remote_refs
         .into_iter()
         .sorted()
-        .map(str::to_owned)
+        .map(|name| (name.to_owned(), None))
         .collect();
     pushed_refs.sort();
 
