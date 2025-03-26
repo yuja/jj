@@ -957,6 +957,10 @@ impl WorkspaceCommandEnvironment {
         Ok(Some((first_immutable, lower, upper)))
     }
 
+    pub fn template_aliases_map(&self) -> &TemplateAliasesMap {
+        &self.template_aliases_map
+    }
+
     /// Parses template of the given language into evaluation tree.
     ///
     /// `wrap_self` specifies the type of the top-level property, which should
@@ -1646,7 +1650,7 @@ to the current parents may contain changes from multiple commits.
         revision_arg: &RevisionArg,
     ) -> Result<(RevsetExpressionEvaluator<'_>, Option<RevsetModifier>), CommandError> {
         let mut diagnostics = RevsetDiagnostics::new();
-        let context = self.revset_parse_context();
+        let context = self.env.revset_parse_context();
         let (expression, modifier) =
             revset::parse_with_modifier(&mut diagnostics, revision_arg.as_ref(), &context)?;
         print_parse_diagnostics(ui, "In revset expression", &diagnostics)?;
@@ -1660,7 +1664,7 @@ to the current parents may contain changes from multiple commits.
         revision_args: &[RevisionArg],
     ) -> Result<RevsetExpressionEvaluator<'_>, CommandError> {
         let mut diagnostics = RevsetDiagnostics::new();
-        let context = self.revset_parse_context();
+        let context = self.env.revset_parse_context();
         let expressions: Vec<_> = revision_args
             .iter()
             .map(|arg| revset::parse_with_modifier(&mut diagnostics, arg.as_ref(), &context))
@@ -1683,18 +1687,10 @@ to the current parents may contain changes from multiple commits.
         )
     }
 
-    pub(crate) fn revset_parse_context(&self) -> RevsetParseContext {
-        self.env.revset_parse_context()
-    }
-
     pub fn id_prefix_context(&self) -> &IdPrefixContext {
         self.user_repo
             .id_prefix_context
             .get_or_init(|| self.env.new_id_prefix_context())
-    }
-
-    pub fn template_aliases_map(&self) -> &TemplateAliasesMap {
-        &self.env.template_aliases_map
     }
 
     /// Parses template of the given language into evaluation tree.
