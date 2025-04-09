@@ -808,6 +808,24 @@ fn test_edit_delete_conflict_input_files() {
     check_resolve_produces_input_file(&mut test_env, "repo", "file", "base", "base\n");
     check_resolve_produces_input_file(&mut test_env, "repo", "file", "left", "a\n");
     check_resolve_produces_input_file(&mut test_env, "repo", "file", "right", "");
+
+    let editor_script = test_env.set_up_fake_editor();
+    let work_dir = test_env.work_dir("repo");
+
+    // Conflict can be resolved even if the file doesn't exist at one side
+    // (therefore has no metadata such as exec bit)
+    std::fs::write(&editor_script, b"write\nresolved\n").unwrap();
+    let output = work_dir.run_jj(["resolve"]);
+    insta::assert_snapshot!(output, @r"
+    ------- stderr -------
+    Resolving conflicts in: file
+    Working copy  (@) now at: vruxwmqv b6497903 conflict | conflict
+    Parent commit (@-)      : zsuskuln aa493daf a | a
+    Parent commit (@-)      : royxmykx 5dc746f4 b | b
+    Added 0 files, modified 1 files, removed 0 files
+    [EOF]
+    ");
+    insta::assert_snapshot!(work_dir.read_file("file"), @"resolved");
 }
 
 #[test]
