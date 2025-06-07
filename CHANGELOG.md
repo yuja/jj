@@ -18,6 +18,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed bugs
 
+* `jj util gc --expire=now` now passes the corresponding flag to `git gc`.
+
 ### Packaging changes
 
 * `aarch64-windows` builds (release binaries and `main` snapshots) are now provided.
