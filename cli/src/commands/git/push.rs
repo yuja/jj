@@ -58,6 +58,7 @@ use crate::command_error::cli_error;
 use crate::command_error::cli_error_with_message;
 use crate::command_error::user_error;
 use crate::command_error::user_error_with_hint;
+use crate::command_error::user_error_with_message;
 use crate::command_error::CommandError;
 use crate::commands::git::get_single_remote;
 use crate::complete;
@@ -161,12 +162,11 @@ pub struct GitPushArgs {
         add = ArgValueCompleter::new(complete::revset_expression_all),
     )]
     revisions: Vec<RevisionArg>,
-    /// Push this commit by creating a bookmark based on its change ID (can be
-    /// repeated)
+    /// Push this commit by creating a bookmark (can be repeated)
     ///
     /// The created bookmark will be tracked automatically. Use the
-    /// `git.push-bookmark-prefix` setting to change the prefix for generated
-    /// names.
+    /// `templates.git_push_bookmark` setting to customize the generated
+    /// bookmark name. The default is `"push-" ++ change_id.short()`.
     #[arg(
         long,
         short,
@@ -294,9 +294,7 @@ pub fn cmd_git_push(
 
         // --change and --named don't move existing bookmarks. If they did, be
         // careful to not select old state by -r/--revisions and bookmark names.
-        let bookmark_prefix = tx.settings().get_string("git.push-bookmark-prefix")?;
-        let change_bookmark_names =
-            create_change_bookmarks(ui, &mut tx, &args.change, &bookmark_prefix)?;
+        let change_bookmark_names = create_change_bookmarks(ui, &mut tx, &args.change)?;
         let created_bookmark_names: Vec<RefNameBuf> = args
             .named
             .iter()
@@ -878,7 +876,6 @@ fn create_change_bookmarks(
     ui: &Ui,
     tx: &mut WorkspaceCommandTransaction,
     changes: &[RevisionArg],
-    bookmark_prefix: &str,
 ) -> Result<Vec<RefNameBuf>, CommandError> {
     if changes.is_empty() {
         // NOTE: we don't want resolve_some_revsets_default_single to fail if the
@@ -892,15 +889,23 @@ fn create_change_bookmarks(
         .iter()
         .map(|id| tx.repo().store().get_commit(id))
         .try_collect()?;
-    let bookmark_names: Vec<_> = all_commits
-        .iter()
-        .map(|commit| {
-            RefNameBuf::from(format!(
-                "{bookmark_prefix}{change_id:.12}",
-                change_id = commit.change_id()
-            ))
-        })
-        .collect();
+    let bookmark_names: Vec<_> = {
+        let template_text = tx.settings().get_string("templates.git_push_bookmark")?;
+        let template = tx.parse_commit_template(ui, &template_text)?;
+        all_commits
+            .iter()
+            .map(|commit| {
+                let output = template.format_plain_text(commit);
+                let name = String::from_utf8(output).map_err(|err| {
+                    user_error_with_message("Invalid character in bookmark name", err.utf8_error())
+                })?;
+                if name.is_empty() {
+                    return Err(user_error("Empty bookmark name generated"));
+                }
+                Ok(RefNameBuf::from(name))
+            })
+            .try_collect()?
+    };
 
     for (commit, name) in iter::zip(&all_commits, &bookmark_names) {
         let target = RefTarget::normal(commit.id().clone());
