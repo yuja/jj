@@ -17,6 +17,7 @@ use std::collections::HashSet;
 use std::fmt;
 use std::io;
 use std::io::Write as _;
+use std::iter;
 
 use clap::ArgGroup;
 use clap_complete::ArgValueCandidates;
@@ -48,7 +49,6 @@ use jj_lib::str_util::StringPattern;
 use jj_lib::view::View;
 
 use crate::cli_util::has_tracked_remote_bookmarks;
-use crate::cli_util::short_change_hash;
 use crate::cli_util::short_commit_hash;
 use crate::cli_util::CommandHelper;
 use crate::cli_util::RevisionArg;
@@ -886,31 +886,37 @@ fn create_change_bookmarks(
         return Ok(vec![]);
     }
 
-    let mut bookmark_names = Vec::new();
     let all_commits: Vec<_> = tx
         .base_workspace_helper()
         .resolve_some_revsets_default_single(ui, changes)?
         .iter()
         .map(|id| tx.repo().store().get_commit(id))
         .try_collect()?;
+    let bookmark_names: Vec<_> = all_commits
+        .iter()
+        .map(|commit| {
+            RefNameBuf::from(format!(
+                "{bookmark_prefix}{change_id:.12}",
+                change_id = commit.change_id()
+            ))
+        })
+        .collect();
 
-    for commit in all_commits {
-        let short_change_id = short_change_hash(commit.change_id());
-        let name: RefNameBuf = format!("{bookmark_prefix}{short_change_id}").into();
+    for (commit, name) in iter::zip(&all_commits, &bookmark_names) {
         let target = RefTarget::normal(commit.id().clone());
         let view = tx.base_repo().view();
-        if view.get_local_bookmark(&name) == &target {
+        if view.get_local_bookmark(name) == &target {
             // Existing bookmark pointing to the commit, which is allowed
-        } else {
-            ensure_new_bookmark_name(view, &name)?;
-            writeln!(
-                ui.status(),
-                "Creating bookmark {name} for revision {short_change_id}",
-                name = name.as_symbol()
-            )?;
-            tx.repo_mut().set_local_bookmark_target(&name, target);
+            continue;
         }
-        bookmark_names.push(name);
+        ensure_new_bookmark_name(view, name)?;
+        writeln!(
+            ui.status(),
+            "Creating bookmark {name} for revision {change_id:.12}",
+            name = name.as_symbol(),
+            change_id = commit.change_id()
+        )?;
+        tx.repo_mut().set_local_bookmark_target(name, target);
     }
     Ok(bookmark_names)
 }
