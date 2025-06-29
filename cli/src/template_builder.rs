@@ -170,7 +170,8 @@ where
     fn try_into_boolean(self) -> Option<BoxedTemplateProperty<'a, bool>>;
     fn try_into_integer(self) -> Option<BoxedTemplateProperty<'a, i64>>;
 
-    fn try_into_plain_text(self) -> Option<BoxedTemplateProperty<'a, String>>;
+    /// Transforms into a string property by formatting the value if needed.
+    fn try_into_stringify(self) -> Option<BoxedTemplateProperty<'a, String>>;
     fn try_into_serialize(self) -> Option<BoxedSerializeProperty<'a>>;
     fn try_into_template(self) -> Option<Box<dyn Template + 'a>>;
 
@@ -290,7 +291,7 @@ impl<'a> CoreTemplatePropertyVar<'a> for CoreTemplatePropertyKind<'a> {
         }
     }
 
-    fn try_into_plain_text(self) -> Option<BoxedTemplateProperty<'a, String>> {
+    fn try_into_stringify(self) -> Option<BoxedTemplateProperty<'a, String>> {
         match self {
             Self::String(property) => Some(property),
             _ => {
@@ -679,8 +680,8 @@ impl<'a, P: CoreTemplatePropertyVar<'a>> Expression<P> {
         self.property.try_into_integer()
     }
 
-    pub fn try_into_plain_text(self) -> Option<BoxedTemplateProperty<'a, String>> {
-        self.property.try_into_plain_text()
+    pub fn try_into_stringify(self) -> Option<BoxedTemplateProperty<'a, String>> {
+        self.property.try_into_stringify()
     }
 
     pub fn try_into_serialize(self) -> Option<BoxedSerializeProperty<'a>> {
@@ -888,7 +889,7 @@ fn builtin_string_methods<'a, L: TemplateLanguage<'a> + ?Sized>(
             let [needle_node] = function.expect_exact_arguments()?;
             // TODO: or .try_into_string() to disable implicit type cast?
             let needle_property =
-                expect_plain_text_expression(language, diagnostics, build_ctx, needle_node)?;
+                expect_stringify_expression(language, diagnostics, build_ctx, needle_node)?;
             let out_property = (self_property, needle_property)
                 .map(|(haystack, needle)| haystack.contains(&needle));
             Ok(out_property.into_dyn_wrapped())
@@ -899,7 +900,7 @@ fn builtin_string_methods<'a, L: TemplateLanguage<'a> + ?Sized>(
         |language, diagnostics, build_ctx, self_property, function| {
             let [needle_node] = function.expect_exact_arguments()?;
             let needle_property =
-                expect_plain_text_expression(language, diagnostics, build_ctx, needle_node)?;
+                expect_stringify_expression(language, diagnostics, build_ctx, needle_node)?;
             let out_property = (self_property, needle_property)
                 .map(|(haystack, needle)| haystack.starts_with(&needle));
             Ok(out_property.into_dyn_wrapped())
@@ -910,7 +911,7 @@ fn builtin_string_methods<'a, L: TemplateLanguage<'a> + ?Sized>(
         |language, diagnostics, build_ctx, self_property, function| {
             let [needle_node] = function.expect_exact_arguments()?;
             let needle_property =
-                expect_plain_text_expression(language, diagnostics, build_ctx, needle_node)?;
+                expect_stringify_expression(language, diagnostics, build_ctx, needle_node)?;
             let out_property = (self_property, needle_property)
                 .map(|(haystack, needle)| haystack.ends_with(&needle));
             Ok(out_property.into_dyn_wrapped())
@@ -921,7 +922,7 @@ fn builtin_string_methods<'a, L: TemplateLanguage<'a> + ?Sized>(
         |language, diagnostics, build_ctx, self_property, function| {
             let [needle_node] = function.expect_exact_arguments()?;
             let needle_property =
-                expect_plain_text_expression(language, diagnostics, build_ctx, needle_node)?;
+                expect_stringify_expression(language, diagnostics, build_ctx, needle_node)?;
             let out_property = (self_property, needle_property).map(|(haystack, needle)| {
                 haystack
                     .strip_prefix(&needle)
@@ -936,7 +937,7 @@ fn builtin_string_methods<'a, L: TemplateLanguage<'a> + ?Sized>(
         |language, diagnostics, build_ctx, self_property, function| {
             let [needle_node] = function.expect_exact_arguments()?;
             let needle_property =
-                expect_plain_text_expression(language, diagnostics, build_ctx, needle_node)?;
+                expect_stringify_expression(language, diagnostics, build_ctx, needle_node)?;
             let out_property = (self_property, needle_property).map(|(haystack, needle)| {
                 haystack
                     .strip_suffix(&needle)
@@ -1636,7 +1637,7 @@ fn builtin_functions<'a, L: TemplateLanguage<'a> + ?Sized>() -> TemplateBuildFun
     map.insert("label", |language, diagnostics, build_ctx, function| {
         let [label_node, content_node] = function.expect_exact_arguments()?;
         let label_property =
-            expect_plain_text_expression(language, diagnostics, build_ctx, label_node)?;
+            expect_stringify_expression(language, diagnostics, build_ctx, label_node)?;
         let content = expect_template_expression(language, diagnostics, build_ctx, content_node)?;
         let labels =
             label_property.map(|s| s.split_whitespace().map(ToString::to_string).collect());
@@ -1657,7 +1658,7 @@ fn builtin_functions<'a, L: TemplateLanguage<'a> + ?Sized>() -> TemplateBuildFun
     );
     map.insert("stringify", |language, diagnostics, build_ctx, function| {
         let [content_node] = function.expect_exact_arguments()?;
-        let content = expect_plain_text_expression(language, diagnostics, build_ctx, content_node)?;
+        let content = expect_stringify_expression(language, diagnostics, build_ctx, content_node)?;
         Ok(L::Property::wrap_property(content))
     });
     map.insert("json", |language, diagnostics, build_ctx, function| {
@@ -1989,7 +1990,7 @@ pub fn expect_usize_expression<'a, L: TemplateLanguage<'a> + ?Sized>(
     Ok(usize_property.into_dyn())
 }
 
-pub fn expect_plain_text_expression<'a, L: TemplateLanguage<'a> + ?Sized>(
+pub fn expect_stringify_expression<'a, L: TemplateLanguage<'a> + ?Sized>(
     language: &L,
     diagnostics: &mut TemplateDiagnostics,
     build_ctx: &BuildContext<L::Property>,
@@ -2002,8 +2003,8 @@ pub fn expect_plain_text_expression<'a, L: TemplateLanguage<'a> + ?Sized>(
         diagnostics,
         build_ctx,
         node,
-        "PlainText",
-        |expression| expression.try_into_plain_text(),
+        "Stringify",
+        |expression| expression.try_into_stringify(),
     )
 }
 
