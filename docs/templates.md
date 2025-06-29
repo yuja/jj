@@ -448,7 +448,10 @@ inside a single-quoted string literal.
 
 ### `Stringify` type
 
-A `String`, or any expression that can be converted to `Template`.
+An expression that can be converted to a `String`.
+
+Any types that can be converted to `Template` can also be `Stringify`. Unlike
+`Template`, color labels are stripped.
 
 ### `Template` type
 
