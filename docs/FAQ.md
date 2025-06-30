@@ -562,6 +562,37 @@ directory.
 
 We hope to integrate with Gerrit natively in the future.
 
+### I'm experiencing `jj` command issues in a Vite/Vitest project, how do I fix this?
+
+When using Vite or Vitest in a Jujutsu repository, you may experience:
+- Very slow vitest startup times
+- Timeout errors in `jj` terminal commands
+- Errors with 3rd party visual tools like `jjk` or `visual-jj`
+- Corrupted `working_copy.lock` files
+
+This happens because Vite watches the `.jj` directory where Jujutsu stores its internal state.
+This creates unnecessary overhead as Vite processes Jujutsu's frequent internal file changes,
+which can slow down both tools and occasionally cause file access conflicts.
+
+**Solution**: Configure Vite to ignore the `.jj` directory by adding it to the
+`server.watch.ignored` array inside your Vite configuration, for example:
+```js
+// vite.config.js
+export default defineConfig({
+  // ... other config like plugins, test setup, etc.
+  server: {
+    watch: {
+      ignored: [
+        "**/.jj/**",
+      ]
+    }
+  },
+})
+```
+
+Note: There was a [request](https://github.com/vitejs/vite/issues/20036) to include `.jj`
+in the default ignore list, but manual configuration remains the recommended approach.
+
 ### I want to write a tool which integrates with Jujutsu. Should I use the library or parse the CLI?
 
 There are some trade-offs and there is no definitive answer yet.
