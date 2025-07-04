@@ -125,7 +125,8 @@ This type cannot be printed. The following methods are defined.
 * `.parents() -> List<Commit>`
 * `.author() -> Signature`
 * `.committer() -> Signature`
-* `.signature() -> Option<CryptographicSignature>`
+* `.signature() -> Option<CryptographicSignature>`: Cryptographic signature if the
+  commit was signed.
 * `.mine() -> Boolean`: Commits where the author's email matches the email of
   the current user.
 * `.working_copies() -> List<WorkspaceRef>`: For multi-workspace repositories, returns a list of workspace references for each workspace whose working-copy commit matches the current commit.
