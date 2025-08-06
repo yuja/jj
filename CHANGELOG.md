@@ -44,7 +44,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   disable colocation (in case `git.colocate` is set to `true`.)
 
 * `jj git remote add` and `jj git clone` now support `--fetch-tags` to control
-  when tags are fetched
+  when tags are fetched for all subsequent fetches.
 
 * `jj diff --stat` now shows the change in size to binary files.
 
@@ -63,6 +63,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `--no-op-diff` flag to suppress the operation diff.
 
 ### Fixed bugs
+
+* `jj git clone` now correctly fetches all tags, unless `--fetch-tags` is
+  explicitly specified, in which case the specified option will apply for both
+  the initial clone and subsequent fetches.
 
 ### Packaging changes
 
