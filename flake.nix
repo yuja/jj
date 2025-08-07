@@ -77,9 +77,6 @@
 
         # for git subprocess test
         git
-
-        # for schema tests
-        jq
       ];
 
       env = {

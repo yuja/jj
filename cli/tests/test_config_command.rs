@@ -20,7 +20,7 @@ use itertools::Itertools as _;
 use regex::Regex;
 
 use crate::common::TestEnvironment;
-use crate::common::default_toml_from_schema;
+use crate::common::default_config_from_schema;
 use crate::common::fake_editor_path;
 use crate::common::force_interactive;
 use crate::common::to_toml_value;
@@ -1279,13 +1279,19 @@ fn test_config_get_yields_values_consistent_with_schema_defaults() {
         output_doc.get("test").unwrap().as_value().unwrap().clone()
     };
 
-    let Some(schema_defaults) = default_toml_from_schema() else {
-        testutils::ensure_running_outside_ci("`jq` must be in the PATH");
-        eprintln!("Skipping test because jq is not installed on the system");
-        return;
-    };
+    let mut schema_defaults = toml_edit::ser::to_document(&default_config_from_schema()).unwrap();
 
-    for (key, schema_default) in schema_defaults.as_table().get_values() {
+    // Ensure that `get_values()` flattens the entire configuration.
+    struct SetDotted;
+    impl toml_edit::visit_mut::VisitMut for SetDotted {
+        fn visit_table_like_mut(&mut self, node: &mut dyn toml_edit::TableLike) {
+            node.set_dotted(true);
+            toml_edit::visit_mut::visit_table_like_mut(self, node);
+        }
+    }
+    toml_edit::visit_mut::visit_document_mut(&mut SetDotted, &mut schema_defaults);
+
+    for (key, schema_default) in schema_defaults.into_table().get_values() {
         let key = key.iter().join(".");
         match key.as_str() {
             // These keys technically don't have a default value, but they exhibit a default
@@ -1312,7 +1318,7 @@ fn test_config_get_yields_values_consistent_with_schema_defaults() {
             // The `immutable_heads()` revset actually defaults to `builtin_immutable_heads()` but
             // this would be a poor starting point for a custom revset, so the schema "inlines"
             // `builtin_immutable_heads()`.
-            "revset-aliases.'immutable_heads()'" => {
+            r#"revset-aliases."immutable_heads()""# => {
                 let builtin_default =
                     get_true_default("revset-aliases.'builtin_immutable_heads()'");
                 assert!(

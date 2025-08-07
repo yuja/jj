@@ -13,24 +13,16 @@
 // limitations under the License.
 
 use itertools::Itertools as _;
-use testutils::ensure_running_outside_ci;
 
-use crate::common::default_toml_from_schema;
+use crate::common::default_config_from_schema;
 
 #[test]
 fn test_config_schema_default_values_are_consistent_with_schema() {
-    let Some(schema_defaults) = default_toml_from_schema() else {
-        ensure_running_outside_ci("`jq` must be in the PATH");
-        eprintln!("Skipping test because jq is not installed on the system");
-        return;
-    };
-
-    let schema_defaults = toml_edit::de::from_document(schema_defaults).unwrap();
-
     let schema = serde_json::from_str(include_str!("../src/config-schema.json"))
         .expect("`config-schema.json` to be valid JSON");
     let validator =
         jsonschema::validator_for(&schema).expect("`config-schema.json` to be a valid schema");
+    let schema_defaults = default_config_from_schema();
     if let jsonschema::BasicOutput::Invalid(errs) = validator.apply(&schema_defaults).basic() {
         panic!(
             "Failed to validate the schema defaults:\n{}",
