@@ -577,7 +577,7 @@ impl Ui {
         if buf.is_empty() {
             return Err(io::Error::new(
                 io::ErrorKind::UnexpectedEof,
-                "Prompt cancelled by EOF",
+                "Prompt canceled by EOF",
             ));
         }
 
