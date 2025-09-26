@@ -498,6 +498,13 @@ pub fn import_some_refs(
         .add_heads(&head_commits)
         .map_err(GitImportError::Backend)?;
 
+    // Allocate views for new remotes configured externally. There may be
+    // remotes with no refs, but the user might still want to "track" absent
+    // remote refs.
+    for remote_name in iter_remote_names(&git_repo) {
+        mut_repo.ensure_remote(&remote_name);
+    }
+
     // Apply the change that happened in git since last time we imported refs.
     for (full_name, new_target) in changed_git_refs {
         mut_repo.set_git_ref_target(&full_name, new_target);
@@ -1881,7 +1888,11 @@ pub fn get_all_remote_names(
     store: &Store,
 ) -> Result<Vec<RemoteNameBuf>, UnexpectedGitBackendError> {
     let git_repo = get_git_repo(store)?;
-    let names = git_repo
+    Ok(iter_remote_names(&git_repo).collect())
+}
+
+fn iter_remote_names(git_repo: &gix::Repository) -> impl Iterator<Item = RemoteNameBuf> {
+    git_repo
         .remote_names()
         .into_iter()
         // exclude empty [remote "<name>"] section
@@ -1889,17 +1900,15 @@ pub fn get_all_remote_names(
         // ignore non-UTF-8 remote names which we don't support
         .filter_map(|name| String::from_utf8(name.into_owned().into()).ok())
         .map(RemoteNameBuf::from)
-        .collect();
-    Ok(names)
 }
 
 pub fn add_remote(
-    store: &Store,
+    mut_repo: &mut MutableRepo,
     remote_name: &RemoteName,
     url: &str,
     fetch_tags: gix::remote::fetch::Tags,
 ) -> Result<(), GitRemoteManagementError> {
-    let git_repo = get_git_repo(store)?;
+    let git_repo = get_git_repo(mut_repo.store())?;
 
     validate_remote_name(remote_name)?;
 
@@ -1922,6 +1931,8 @@ pub fn add_remote(
     let mut config = git_repo.config_snapshot().clone();
     save_remote(&mut config, remote_name, &mut remote)?;
     save_git_config(&config).map_err(GitRemoteManagementError::GitConfigSaveError)?;
+
+    mut_repo.ensure_remote(remote_name);
 
     Ok(())
 }
