@@ -189,11 +189,7 @@ object](templates.md#commit-type).
 [templates]
 draft_commit_description = '''
 concat(
-  coalesce(description, default_commit_description, "\n"),
-  surround(
-    "\nJJ: This commit contains the following changes:\n", "",
-    indent("JJ:     ", diff.stat(72)),
-  ),
+  builtin_draft_commit_description,
   "\nJJ: ignore-rest\n",
   diff.git(),
 )
