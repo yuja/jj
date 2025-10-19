@@ -222,9 +222,10 @@ impl UnpublishedOperation {
     }
 
     pub fn publish(self) -> Result<Arc<ReadonlyRepo>, TransactionCommitError> {
-        let _lock = self.op_heads_store.lock()?;
+        let _lock = self.op_heads_store.lock().block_on()?;
         self.op_heads_store
-            .update_op_heads(self.operation().parent_ids(), self.operation().id())?;
+            .update_op_heads(self.operation().parent_ids(), self.operation().id())
+            .block_on()?;
         Ok(self.repo)
     }
 

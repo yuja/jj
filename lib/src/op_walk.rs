@@ -207,7 +207,8 @@ pub fn get_current_head_ops(
     op_heads_store: &dyn OpHeadsStore,
 ) -> Result<Vec<Operation>, OpsetEvaluationError> {
     let mut head_ops: Vec<_> = op_heads_store
-        .get_op_heads()?
+        .get_op_heads()
+        .block_on()?
         .into_iter()
         .map(|id| -> OpStoreResult<Operation> {
             let data = op_store.read_operation(&id).block_on()?;
