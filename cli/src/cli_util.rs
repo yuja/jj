@@ -1906,6 +1906,7 @@ to the current parents may contain changes from multiple commits.
             // committing the working copy.
             return Ok(SnapshotStats::default());
         };
+
         self.user_repo = ReadonlyUserRepo::new(repo);
         let (new_tree, stats) = {
             let mut options = options;
