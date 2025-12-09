@@ -877,7 +877,6 @@ Thanks to the people who made this release happen!
 * Vincent Ging Ho Yim (@cenviity)
 * Yuya Nishihara (@yuja)
 
-
 ## [0.30.0] - 2025-06-04
 
 ### Release highlights
@@ -1915,7 +1914,6 @@ Thanks to the people who made this release happen!
 ### Fixed bugs
 
 * `jj config unset <TABLE-NAME>` no longer removes a table (such as `[ui]`.)
-
 
 ### Contributors
 
@@ -4386,7 +4384,6 @@ No changes, only trying to get the automated build to work.
 ## [0.3.0] - 2022-03-12
 
 Last release before this changelog started.
-
 
 [unreleased]: https://github.com/jj-vcs/jj/compare/v0.36.0...HEAD
 [0.36.0]: https://github.com/jj-vcs/jj/compare/v0.35.0...v0.36.0
