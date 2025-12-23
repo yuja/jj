@@ -501,7 +501,7 @@ pub trait Backend: Any + Send + Sync + Debug {
         sign_with: Option<&mut SigningFn>,
     ) -> BackendResult<(CommitId, Commit)>;
 
-    /// Get copy records for the dag range `root..head`.  If `paths` is None
+    /// Get copy records for the dag range `root..head`. If `paths` is None
     /// include all paths, otherwise restrict to only `paths`.
     ///
     /// The exact order these are returned is unspecified, but it is guaranteed
